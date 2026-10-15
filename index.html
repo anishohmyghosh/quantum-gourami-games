@@ -47,6 +47,7 @@ p{margin:0;line-height:1.55;color:#ddd6ff;max-width:62ch}
 .mode[aria-pressed="true"]{border-color:var(--pink);background:rgba(255,138,216,.12)}
 .mode b{font-family:var(--arcade);font-weight:400;letter-spacing:.06em}
 .go{font-family:var(--arcade);font-size:18px;letter-spacing:.1em;padding:14px 18px;border-radius:14px;border:0;cursor:pointer;color:#1a0f3a;background:linear-gradient(90deg,var(--cyan),var(--lilac),var(--pink));box-shadow:0 0 30px -6px rgba(255,138,216,.6)}
+.plays{font-family:var(--arcade);font-size:12px;letter-spacing:.14em;color:var(--cyan);text-align:center}
 .go:disabled{opacity:.5;cursor:default}
 button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 .keys{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--dim)}
@@ -94,6 +95,7 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
       <button class="mode" id="mArcade" aria-pressed="false"><b>ARCADE</b><span>Two nebulas, two frequencies. Eat the one that matches the tone, dodge asteroids and black holes. Three lives.</span></button>
     </div>
     <button class="go" id="startBtn">PRESS START</button>
+    <div class="plays" id="plays" hidden></div>
     <div class="keys"><span><kbd>↑</kbd> <kbd>↓</kbd> swim</span><span>drag or tap to steer</span><span><kbd>SPACE</kbd> lock in (training)</span><span>headphones at a low volume; the top end is piercing</span></div>
   </div>
 </section>
@@ -273,6 +275,7 @@ function lockIn(){
 }
 function startGame(){
   audioInit(); if (ac.state === 'suspended') ac.resume();
+  countPlay();
   if (S.mode === 'arcade') return startArcade();
   $('hLeft').innerHTML = 'ROUND <b id="hRound">1</b>/10'; $('hBarWrap').hidden = false; $('hint').textContent = '↑ ↓ or drag to change frequency · Space to lock in early';
   Object.assign(S, { round:0, score:0, results:[] }); $('hScore').textContent = 0;
@@ -376,6 +379,12 @@ $('nameForm').addEventListener('submit', e => {
   renderBoard();
 });
 
+/* ---------- play counter (abacus.jasoncameron.dev, free and keyless) ---------- */
+const COUNTER = 'https://abacus.jasoncameron.dev/%s/anishohmyghosh-quantum-gourami/plays';
+function showPlays(v){ if (typeof v !== 'number') return; $('plays').textContent = v.toLocaleString() + (v === 1 ? ' GAME PLAYED' : ' GAMES PLAYED') + ' SO FAR'; $('plays').hidden = false; }
+function countPlay(){ fetch(COUNTER.replace('%s','hit')).then(r => r.json()).then(d => showPlays(d.value)).catch(() => {}); }
+fetch(COUNTER.replace('%s','get')).then(r => r.json()).then(d => showPlays(d.value)).catch(() => {});
+
 /* ---------- arcade ---------- */
 const NEBULAE = [['ORION NEBULA',330],['CRAB NEBULA',20],['HELIX NEBULA',190],['LAGOON NEBULA',300],['EAGLE NEBULA',35],['CAT’S EYE NEBULA',160],['RING NEBULA',265],['CARINA NEBULA',15],['BUTTERFLY NEBULA',210],['TARANTULA NEBULA',345],['HORSEHEAD NEBULA',350],['VEIL NEBULA',240]];
 const SNACKS = [['COMET DUST','#cfe0c2',5,30],['RED DWARF','#ff6b5a',10,26],['YELLOW STAR','#ffd166',15,18],['WHITE DWARF','#f4f1ff',20,12],['BLUE GIANT','#6fb7ff',30,8],['PULSAR','#ff8ad8',40,4],['NEUTRON STAR','#b9fff3',50,2]];
@@ -403,7 +412,7 @@ function spawnWave(){
   const m1 = lo + Math.random()*(hi - lo), m2 = m1 + gap*12;
   const pair = Math.random() < .5 ? [m1, m2] : [m2, m1];
   const okIdx = Math.random() < .5 ? 0 : 1;
-  const R = Math.max(40, Math.min(84, Math.min(W, H) * .085));
+  const R = Math.max(30, Math.min(62, Math.min(W, H) * .062));
   const tTop = top() + R, mid = H/2, bBot = bottom() - R;
   const ys = [tTop + Math.random()*Math.max(1, mid - R*.6 - tTop), mid + R*.6 + Math.random()*Math.max(1, bBot - mid - R*.6)];
   if (Math.random() < .5) ys.reverse();
@@ -454,7 +463,7 @@ function arcadeStep(dt){
   }
   A.objs = A.objs.filter(o => o.x > -o.r*8 && !o.dead);
   if (A.wave){ for (const n of A.wave.nebs){ n.x -= v*dt; n.ph += dt;
-      if (!A.wave.done && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*1.1 + hitR*.75){ n.eaten = true; resolveWave(n); }
+      if (!A.wave.done && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*.95 + hitR*.65){ n.eaten = true; resolveWave(n); }
       if (A.wave.done) n.fade = Math.max(0, n.fade - dt*2.2); }
     if (!A.wave.done && A.wave.nebs.every(n => n.x < X - n.r - hitR)) resolveWave(null);
     if (A.wave.done && A.wave.nebs.every(n => n.fade <= 0 || n.x < -n.r*2)) A.wave = null; }
@@ -471,12 +480,12 @@ function arcadeStep(dt){
       ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,6.283); ctx.fill(); }
   }
   if (A.wave) for (const n of A.wave.nebs){ if (n.fade <= 0) continue; ctx.globalAlpha = n.fade;
-    for (let k=0;k<4;k++){ const ox = Math.cos(n.ph*.7 + k*1.7)*n.r*.35, oy = Math.sin(n.ph*.9 + k*2.1)*n.r*.3; const rr = n.r*(1.05 - k*.12);
-      const g = ctx.createRadialGradient(n.x+ox,n.y+oy,0,n.x+ox,n.y+oy,rr*1.4); g.addColorStop(0,`hsla(${n.hue + k*25},95%,${78 - k*6}%,.75)`); g.addColorStop(.5,`hsla(${n.hue + k*25},85%,55%,.25)`); g.addColorStop(1,`hsla(${n.hue},80%,40%,0)`);
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x+ox,n.y+oy,rr*1.4,0,6.283); ctx.fill(); }
+    for (let k=0;k<4;k++){ const ox = Math.cos(n.ph*.7 + k*1.7)*n.r*.22, oy = Math.sin(n.ph*.9 + k*2.1)*n.r*.2; const rr = n.r*(1.05 - k*.12);
+      const g = ctx.createRadialGradient(n.x+ox,n.y+oy,0,n.x+ox,n.y+oy,rr*1.2); g.addColorStop(0,`hsla(${n.hue + k*25},95%,${78 - k*6}%,.75)`); g.addColorStop(.5,`hsla(${n.hue + k*25},85%,55%,.25)`); g.addColorStop(1,`hsla(${n.hue},80%,40%,0)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x+ox,n.y+oy,rr*1.2,0,6.283); ctx.fill(); }
     ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(n.x,n.y,3,0,6.283); ctx.fill();
-    ctx.font = `${Math.round(Math.max(13, n.r*.32))}px Silkscreen, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const lab = hz(freqOf(n.m)).toUpperCase(); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.75)'; ctx.strokeText(lab, n.x, n.y + n.r*.95); ctx.fillStyle = '#fff6e8'; ctx.fillText(lab, n.x, n.y + n.r*.95);
+    ctx.font = `${Math.round(Math.max(13, n.r*.36))}px Silkscreen, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lab = hz(freqOf(n.m)).toUpperCase(); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.75)'; ctx.strokeText(lab, n.x, n.y + n.r*1.25); ctx.fillStyle = '#fff6e8'; ctx.fillText(lab, n.x, n.y + n.r*1.25);
     ctx.globalAlpha = 1; }
   // gourami
   const blink = A.inv > 0 && Math.floor(A.inv*10) % 2 === 0;
