@@ -2,9 +2,6 @@
 
 A small ear-training game. A soft sine tone plays somewhere between 50 Hz and 15 kHz; swim the celestial gourami to the height that matches it before the time bar runs out. Ten rounds, each faster than the last. Scoring is by how many octaves you miss by: within 1/12 octave is Perfect, within 1/3 octave is Close.
 
-- **Hum Along:** the gourami hums its own frequency, so you hear the two tones beat as you get close.
-- **Pure Ear (×1.5):** only the target tone.
-
 Controls: ↑ / ↓ (or W / S) to swim, drag or tap to steer, Space to lock in early. Use headphones at a low volume; the top end is piercing.
 
 ## Run it locally

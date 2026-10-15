@@ -35,11 +35,12 @@ body{background:var(--void);color:var(--pearl);font-family:var(--body);overflow:
 .screen{position:fixed;inset:0;display:grid;place-items:center;padding:24px 16px;overflow:auto}
 .panel{width:min(560px,100%);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:28px 26px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:16px;box-shadow:0 30px 80px -30px rgba(0,0,0,.8)}
 .eyebrow{font-family:var(--arcade);font-size:12px;letter-spacing:.18em;color:var(--cyan)}
-h1{font-family:var(--display);font-style:italic;font-weight:600;font-size:clamp(40px,8vw,64px);line-height:.95;margin:0;text-wrap:balance;background:linear-gradient(90deg,var(--pearl),var(--pink) 60%,var(--lilac));-webkit-background-clip:text;background-clip:text;color:transparent}
+h1{font-family:var(--display);font-style:italic;font-weight:600;font-size:clamp(40px,8vw,64px);line-height:1.05;margin:0;padding:0 .12em .14em 0;text-wrap:balance;background:linear-gradient(90deg,var(--pearl),var(--pink) 60%,var(--lilac));-webkit-background-clip:text;background-clip:text;color:transparent}
 h2{font-family:var(--display);font-style:italic;font-weight:400;font-size:28px;margin:0;color:var(--pink)}
 p{margin:0;line-height:1.55;color:#ddd6ff;max-width:62ch}
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .mode{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:rgba(255,255,255,.03);color:var(--pearl);text-align:left;font:inherit;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0}
+.note{font-size:14px;color:var(--dim)}
 .mode span{font-size:13px;color:var(--dim)}
 .mode[aria-pressed="true"]{border-color:var(--pink);background:rgba(255,138,216,.12)}
 .mode b{font-family:var(--arcade);font-weight:400;letter-spacing:.06em}
@@ -86,10 +87,7 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
     <div class="eyebrow">QUANTUM GOURAMI</div>
     <h1>Frequency Training</h1>
     <p>A soft sine tone rings out across space. Swim to its height before the bar runs out: the sky runs from 50 Hz at the bottom to 15 kHz at the top, spaced by octaves like an EQ. Ten rounds, each one faster. Land within a third of an octave and you’re close; within a twelfth and it’s perfect.</p>
-    <div class="modes" role="group" aria-label="Mode">
-      <button class="mode" id="mHum" aria-pressed="true"><b>HUM ALONG</b><span>Your gourami hums its frequency, so you hear the two tones beat together as you get close.</span></button>
-      <button class="mode" id="mPure" aria-pressed="false"><b>PURE EAR ×1.5</b><span>Silent gourami. Only the target tone, the way you’d hunt a ringing frequency on a mix. Points ×1.5.</span></button>
-    </div>
+    <p class="note">Just you and the tone. No hints until the bar runs out.</p>
     <button class="go" id="startBtn">PRESS START</button>
     <div class="keys"><span><kbd>↑</kbd> <kbd>↓</kbd> swim</span><span>drag or tap to steer</span><span><kbd>SPACE</kbd> lock in</span><span>headphones at a low volume; the top end is piercing</span></div>
   </div>
@@ -97,7 +95,7 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
 
 <section class="screen" id="end" hidden>
   <div class="panel">
-    <div class="eyebrow" id="eMode">HUM ALONG</div>
+    <div class="eyebrow" id="eMode">FREQUENCY TRAINING</div>
     <h2 id="eRank">Nebula Navigator</h2>
     <div class="stats">
       <div class="stat"><small>Score</small><b id="eScore">0</b></div>
@@ -114,7 +112,7 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
       <ol class="board" id="board"></ol>
       <div class="boardnote" id="boardNote"></div>
     </div>
-    <div class="row"><button class="go" id="againBtn">PLAY AGAIN</button><button class="ghost" id="menuBtn">Change mode</button></div>
+    <div class="row"><button class="go" id="againBtn">PLAY AGAIN</button><button class="ghost" id="menuBtn">Main menu</button></div>
   </div>
 </section>
 
@@ -246,17 +244,17 @@ function drawRuler(){
 }
 
 /* ---------- game state ---------- */
-const S = { phase:'menu', mode:'hum', round:0, score:0, results:[], my: midiOf(1000), vy:0, target:0, tLeft:0, tMax:1, reveal:0, holdUp:false, holdDn:false, dragY:null, hold:0 };
+const S = { phase:'menu', mode:'pure', round:0, score:0, results:[], my: midiOf(1000), vy:0, target:0, tLeft:0, tMax:1, reveal:0, holdUp:false, holdDn:false, dragY:null, hold:0 };
 const ROUNDS = 10;
 const roundTime = r => 10 * Math.pow(.86, r);  // 10s → about 2.6s by round 10
-function pts(oct, frac){ const base = 1000*Math.exp(-Math.abs(oct)/.3); const bonus = Math.abs(oct) <= 1/6 ? frac*150 : 0; return Math.round((base + bonus) * (S.mode==='pure' ? 1.5 : 1)); }
+function pts(oct, frac){ const base = 1000*Math.exp(-Math.abs(oct)/.3); const bonus = Math.abs(oct) <= 1/6 ? frac*150 : 0; return Math.round(base + bonus); }
 const label = o => { o = Math.abs(o); return o <= 1/12 ? 'PERFECT' : o <= 1/6 ? 'GREAT' : o <= 1/3 ? 'CLOSE' : o <= 1 ? 'NEAR' : 'LOST IN SPACE'; };
 const octTxt = o => (o >= 0 ? '+' : '−') + Math.abs(o).toFixed(2) + ' oct';
 
 function newRound(){
   const lo = midiOf(60), hi = midiOf(12000); let m; do { m = lo + Math.random()*(hi - lo); } while (Math.abs(m - S.my) < 9);
   S.target = m; S.tMax = S.tLeft = roundTime(S.round); S.phase = 'play';
-  toneOn(freqOf(m)); humSet(S.mode === 'hum');
+  toneOn(freqOf(m));
   $('hRound').textContent = S.round + 1; $('hTarget').textContent = 'LISTEN'; $('toast').hidden = true;
 }
 function lockIn(){
@@ -278,9 +276,9 @@ function finish(){
   S.phase = 'end'; humSet(false); $('hud').hidden = true; $('hint').hidden = true; $('pad').hidden = true; $('toast').hidden = true;
   const avg = S.results.reduce((a,r) => a + Math.abs(r.oct), 0) / S.results.length;
   const perf = S.results.filter(r => Math.abs(r.oct) <= 1/12).length;
-  const max = S.mode==='pure' ? 15000 : 10000, f = S.score / max;
+  const f = S.score / 10000;
   $('eRank').textContent = f >= .9 ? 'Celestial Ear' : f >= .72 ? 'Nebula Navigator' : f >= .52 ? 'Comet Chaser' : f >= .32 ? 'Stardust Drifter' : 'Gourami Fry';
-  $('eMode').textContent = S.mode === 'pure' ? 'PURE EAR ×1.5' : 'HUM ALONG';
+  $('eMode').textContent = 'FREQUENCY TRAINING';
   $('eScore').textContent = S.score; $('eAvg').textContent = avg.toFixed(2) + ' oct'; $('ePerf').textContent = perf;
   const top = Math.max(...S.results.map(r => r.p), 1);
   $('eRounds').innerHTML = ''; S.results.forEach((r,i) => { const b = document.createElement('i'); b.style.height = (r.p/top*100) + '%'; b.title = `Round ${i+1}: ${r.p} pts, ${octTxt(r.oct)}`; $('eRounds').append(b); });
@@ -304,8 +302,6 @@ const endDrag = () => { S.dragY = null; }; cv.addEventListener('pointerup', endD
 const padHold = (btn, key) => { btn.addEventListener('pointerdown', e => { e.preventDefault(); S[key] = true; }); ['pointerup','pointerleave','pointercancel'].forEach(ev => btn.addEventListener(ev, () => S[key] = false)); };
 padHold($('pUp'), 'holdUp'); padHold($('pDn'), 'holdDn');
 
-$('mHum').onclick = () => { S.mode='hum'; $('mHum').setAttribute('aria-pressed','true'); $('mPure').setAttribute('aria-pressed','false'); };
-$('mPure').onclick = () => { S.mode='pure'; $('mPure').setAttribute('aria-pressed','true'); $('mHum').setAttribute('aria-pressed','false'); };
 $('startBtn').onclick = startGame; $('againBtn').onclick = startGame;
 $('menuBtn').onclick = () => { $('end').hidden = true; $('menu').hidden = false; S.phase = 'menu'; };
 
@@ -351,7 +347,7 @@ function renderBoard(){
   rows.forEach((r,i) => { const li = document.createElement('li'); if (r.mine) li.className = 'me';
     const a = document.createElement('span'); a.className='rk'; a.textContent = String(i+1).padStart(2,'0');
     const b = document.createElement('span'); b.textContent = r.name;
-    const c = document.createElement('span'); c.className='md'; c.textContent = r.mode === 'pure' ? 'PURE' : 'HUM';
+    const c = document.createElement('span'); c.className='md'; c.textContent = '';
     const d = document.createElement('span'); d.className='sc'; d.textContent = r.score;
     li.append(a,b,c,d); $('board').append(li); });
   $('boardNote').textContent = db ? 'Shared with everyone who plays this page. Your best run is kept.' : 'Scores saved in this browser.';
@@ -386,9 +382,7 @@ $('nameForm').addEventListener('submit', async e => {
 })();
 
 const boot = () => { resize(); renderBoard(); requestAnimationFrame(frame); };
-window.claude?.hot?.snapshot?.(() => ({ mode: S.mode }));
-if (window.claude?.hot?.ready) window.claude.hot.ready(d => { if (d && d.mode) (d.mode === 'pure' ? $('mPure') : $('mHum')).click(); boot(); });
-else boot();
+boot();
 })();
 </script>
 
