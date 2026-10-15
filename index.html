@@ -454,7 +454,7 @@ function arcadeStep(dt){
   }
   A.objs = A.objs.filter(o => o.x > -o.r*8 && !o.dead);
   if (A.wave){ for (const n of A.wave.nebs){ n.x -= v*dt; n.ph += dt;
-      if (!A.wave.done && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*.8 + hitR*.6){ n.eaten = true; resolveWave(n); }
+      if (!A.wave.done && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*1.1 + hitR*.75){ n.eaten = true; resolveWave(n); }
       if (A.wave.done) n.fade = Math.max(0, n.fade - dt*2.2); }
     if (!A.wave.done && A.wave.nebs.every(n => n.x < X - n.r - hitR)) resolveWave(null);
     if (A.wave.done && A.wave.nebs.every(n => n.fade <= 0 || n.x < -n.r*2)) A.wave = null; }
