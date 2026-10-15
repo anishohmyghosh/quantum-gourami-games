@@ -31,8 +31,10 @@ body{background:var(--void);color:var(--pearl);font-family:var(--body);overflow:
 .hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);text-align:center;font-size:13px;color:var(--dim);pointer-events:none;padding-inline:16px}
 .pad{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 44px);display:none;flex-direction:column;gap:10px}
 .pad button{width:64px;height:64px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--pearl);font-size:26px}
-@media (pointer:coarse){.pad{display:flex}}
-.screen{position:fixed;inset:0;display:grid;place-items:center;padding:24px 16px;overflow:auto}
+@media (pointer:coarse){.pad{display:flex}.hint{bottom:calc(env(safe-area-inset-bottom,0px) + 8px);font-size:12px}}
+@media (max-width:480px){.hudrow{font-size:11px}.hudrow b{font-size:15px}h1{font-size:44px}}
+.screen{position:fixed;inset:0;display:grid;place-items:center;padding:24px 16px;overflow:auto;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+.panel input,.panel{-webkit-user-select:text;user-select:text}
 .panel{width:min(560px,100%);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:28px 26px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:16px;box-shadow:0 30px 80px -30px rgba(0,0,0,.8)}
 .eyebrow{font-family:var(--arcade);font-size:12px;letter-spacing:.18em;color:var(--cyan)}
 h1{font-family:var(--display);font-style:italic;font-weight:600;font-size:clamp(40px,8vw,64px);line-height:1.05;margin:0;padding:0 .12em .14em 0;text-wrap:balance;background:linear-gradient(90deg,var(--pearl),var(--pink) 60%,var(--lilac));-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -75,8 +77,8 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
 <canvas id="sky" aria-label="Quantum Gourami frequency training: a celestial gourami swimming through space"></canvas>
 
 <div class="hud" id="hud" hidden>
-  <div class="hudrow"><span>ROUND <b id="hRound">1</b>/10</span><span id="hTarget">LISTEN</span><span>SCORE <b id="hScore">0</b></span></div>
-  <div class="bar" aria-hidden="true"><i id="hBar"></i></div>
+  <div class="hudrow"><span id="hLeft">ROUND <b id="hRound">1</b>/10</span><span id="hTarget">LISTEN</span><span>SCORE <b id="hScore">0</b></span></div>
+  <div class="bar" id="hBarWrap" aria-hidden="true"><i id="hBar"></i></div>
 </div>
 <div class="toast" id="toast" hidden><div class="big" id="tBig"></div><div class="small" id="tSmall"></div></div>
 <div class="hint" id="hint" hidden>↑ ↓ or drag to change frequency · Space to lock in early</div>
@@ -86,10 +88,13 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
   <div class="panel">
     <div class="eyebrow">QUANTUM GOURAMI</div>
     <h1>Frequency Training</h1>
-    <p>A soft sine tone rings out across space. Swim to its height before the bar runs out: the sky runs from 50 Hz at the bottom to 15 kHz at the top, spaced by octaves like an EQ. Ten rounds, each one faster. Land within a third of an octave and you’re close; within a twelfth and it’s perfect.</p>
-    <p class="note">Just you and the tone. No hints until the bar runs out.</p>
+    <p>A soft sine tone rings out across space, somewhere between 50 Hz and 15 kHz. Learn to hear where it sits, the way an engineer hunts a ringing frequency in a mix.</p>
+    <div class="modes" role="group" aria-label="Mode">
+      <button class="mode" id="mTrain" aria-pressed="true"><b>TRAINING</b><span>Swim to the height of the tone. Ten rounds against a shrinking clock.</span></button>
+      <button class="mode" id="mArcade" aria-pressed="false"><b>ARCADE</b><span>Two nebulas, two frequencies. Eat the one that matches the tone, dodge asteroids and black holes. Three lives.</span></button>
+    </div>
     <button class="go" id="startBtn">PRESS START</button>
-    <div class="keys"><span><kbd>↑</kbd> <kbd>↓</kbd> swim</span><span>drag or tap to steer</span><span><kbd>SPACE</kbd> lock in</span><span>headphones at a low volume; the top end is piercing</span></div>
+    <div class="keys"><span><kbd>↑</kbd> <kbd>↓</kbd> swim</span><span>drag or tap to steer</span><span><kbd>SPACE</kbd> lock in (training)</span><span>headphones at a low volume; the top end is piercing</span></div>
   </div>
 </section>
 
@@ -98,9 +103,9 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
     <div class="eyebrow" id="eMode">FREQUENCY TRAINING</div>
     <h2 id="eRank">Nebula Navigator</h2>
     <div class="stats">
-      <div class="stat"><small>Score</small><b id="eScore">0</b></div>
-      <div class="stat"><small>Avg miss</small><b id="eAvg">0 oct</b></div>
-      <div class="stat"><small>Perfects</small><b id="ePerf">0</b></div>
+      <div class="stat"><small id="eL1">Score</small><b id="eScore">0</b></div>
+      <div class="stat"><small id="eL2">Avg miss</small><b id="eAvg">0 oct</b></div>
+      <div class="stat"><small id="eL3">Perfects</small><b id="ePerf">0</b></div>
     </div>
     <div class="rounds" id="eRounds" aria-label="Points per round"></div>
     <form class="namerow" id="nameForm">
@@ -244,7 +249,7 @@ function drawRuler(){
 }
 
 /* ---------- game state ---------- */
-const S = { phase:'menu', mode:'pure', round:0, score:0, results:[], my: midiOf(1000), vy:0, target:0, tLeft:0, tMax:1, reveal:0, holdUp:false, holdDn:false, dragY:null, hold:0 };
+const S = { phase:'menu', mode:'train', round:0, score:0, results:[], my: midiOf(1000), vy:0, target:0, tLeft:0, tMax:1, reveal:0, holdUp:false, holdDn:false, dragY:null, hold:0 };
 const ROUNDS = 10;
 const roundTime = r => 10 * Math.pow(.86, r);  // 10s → about 2.6s by round 10
 function pts(oct, frac){ const base = 1000*Math.exp(-Math.abs(oct)/.3); const bonus = Math.abs(oct) <= 1/6 ? frac*150 : 0; return Math.round(base + bonus); }
@@ -268,6 +273,8 @@ function lockIn(){
 }
 function startGame(){
   audioInit(); if (ac.state === 'suspended') ac.resume();
+  if (S.mode === 'arcade') return startArcade();
+  $('hLeft').innerHTML = 'ROUND <b id="hRound">1</b>/10'; $('hBarWrap').hidden = false; $('hint').textContent = '↑ ↓ or drag to change frequency · Space to lock in early';
   Object.assign(S, { round:0, score:0, results:[] }); $('hScore').textContent = 0;
   $('menu').hidden = true; $('end').hidden = true; $('hud').hidden = false; $('hint').hidden = false; $('pad').hidden = false;
   newRound();
@@ -278,37 +285,42 @@ function finish(){
   const perf = S.results.filter(r => Math.abs(r.oct) <= 1/12).length;
   const f = S.score / 10000;
   $('eRank').textContent = f >= .9 ? 'Celestial Ear' : f >= .72 ? 'Nebula Navigator' : f >= .52 ? 'Comet Chaser' : f >= .32 ? 'Stardust Drifter' : 'Gourami Fry';
-  $('eMode').textContent = 'FREQUENCY TRAINING';
+  $('eMode').textContent = 'FREQUENCY TRAINING'; $('eL1').textContent='Score'; $('eL2').textContent='Avg miss'; $('eL3').textContent='Perfects'; $('eRounds').hidden = false;
   $('eScore').textContent = S.score; $('eAvg').textContent = avg.toFixed(2) + ' oct'; $('ePerf').textContent = perf;
   const top = Math.max(...S.results.map(r => r.p), 1);
   $('eRounds').innerHTML = ''; S.results.forEach((r,i) => { const b = document.createElement('i'); b.style.height = (r.p/top*100) + '%'; b.title = `Round ${i+1}: ${r.p} pts, ${octTxt(r.oct)}`; $('eRounds').append(b); });
-  $('saveBtn').disabled = false; $('nameIn').disabled = false; $('end').hidden = false;
-  setTimeout(() => { try { $('nameIn').focus(); } catch(e){} }, 60);
+  $('saveBtn').disabled = false; $('nameIn').disabled = false; $('nameIn').value = ''; $('end').hidden = false;
+  if (!matchMedia('(pointer:coarse)').matches) setTimeout(() => { try { $('nameIn').focus(); } catch(e){} }, 60);
   renderBoard();
 }
 
 /* ---------- input ---------- */
 const keyUp = k => k === 'ArrowUp' || k === 'w' || k === 'W', keyDn = k => k === 'ArrowDown' || k === 's' || k === 'S';
 addEventListener('keydown', e => {
-  if (S.phase !== 'play' && S.phase !== 'reveal') return;
+  if (S.phase !== 'play' && S.phase !== 'reveal' && S.phase !== 'arcade') return;
   if (keyUp(e.key)) { S.holdUp = true; e.preventDefault(); }
   if (keyDn(e.key)) { S.holdDn = true; e.preventDefault(); }
-  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); lockIn(); }
+  if ((e.key === ' ' || e.key === 'Enter') && S.phase !== 'arcade') { e.preventDefault(); lockIn(); }
 });
 addEventListener('keyup', e => { if (keyUp(e.key)) S.holdUp = false; if (keyDn(e.key)) S.holdDn = false; });
-cv.addEventListener('pointerdown', e => { if (S.phase === 'play' || S.phase === 'reveal') { S.dragY = e.clientY; cv.setPointerCapture(e.pointerId); } });
+cv.addEventListener('pointerdown', e => { if (S.phase === 'play' || S.phase === 'reveal' || S.phase === 'arcade') { S.dragY = e.clientY; cv.setPointerCapture(e.pointerId); } });
 cv.addEventListener('pointermove', e => { if (S.dragY !== null) S.dragY = e.clientY; });
 const endDrag = () => { S.dragY = null; }; cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
 const padHold = (btn, key) => { btn.addEventListener('pointerdown', e => { e.preventDefault(); S[key] = true; }); ['pointerup','pointerleave','pointercancel'].forEach(ev => btn.addEventListener(ev, () => S[key] = false)); };
 padHold($('pUp'), 'holdUp'); padHold($('pDn'), 'holdDn');
 
+const setMode = m => { S.mode = m; $('mTrain').setAttribute('aria-pressed', m==='train'); $('mArcade').setAttribute('aria-pressed', m==='arcade'); };
+$('mTrain').onclick = () => setMode('train'); $('mArcade').onclick = () => setMode('arcade');
 $('startBtn').onclick = startGame; $('againBtn').onclick = startGame;
 $('menuBtn').onclick = () => { $('end').hidden = true; $('menu').hidden = false; S.phase = 'menu'; };
 
 /* ---------- loop ---------- */
-let last = performance.now(), T = 0;
+let last = performance.now(), T = 0, tiltS = 0;
+// ease the fish's pitch-up / pitch-down toward a target so turns feel fluid
+const easeTilt = (target, dt) => (tiltS += (target - tiltS) * Math.min(1, dt * 3.2));
 function frame(now){
   const dt = Math.min(.05, (now - last)/1000); last = now; T += dt;
+  if (S.phase === 'arcade'){ drawSky(dt*1.8, T); arcadeStep(dt); requestAnimationFrame(frame); return; }
   if (S.phase === 'play' || S.phase === 'reveal'){
     const moving = S.holdUp || S.holdDn; S.hold = moving ? S.hold + dt : 0;
     const speed = 8 + Math.min(52, S.hold*40);          // semitones per second, accelerates while held (range is ~99 semitones)
@@ -332,54 +344,162 @@ function frame(now){
     ctx.fillText('TARGET ' + hz(freqOf(S.target)).toUpperCase(), 16, ty - 6);
   }
   const s = Math.min(W, H) / 1900 * (W < 600 ? 1.25 : 1);
-  const tilt = Math.max(-.35, Math.min(.35, -S.vy*.03));
+  const tilt = easeTilt(Math.max(-.28, Math.min(.28, -S.vy*.022)), dt);
   drawFish(W/2, fy, s, T, tilt + Math.sin(T*.9)*.03);
   requestAnimationFrame(frame);
 }
 
-/* ---------- leaderboard (shared when available, this browser otherwise) ---------- */
-let db = null, me = null, unsub = null, board = [], localBoard = [];
-try { localBoard = JSON.parse(localStorage.getItem('gp.board') || '[]'); } catch(e){ localBoard = []; }
+/* ---------- leaderboard (this browser, one board per mode) ---------- */
+const boards = { train: [], arcade: [] };
+for (const k of ['train','arcade']) { try { boards[k] = JSON.parse(localStorage.getItem('qg.board.' + k) || '[]'); } catch(e){ boards[k] = []; } }
+let lastEntry = null;
 function renderBoard(){
-  const rows = (db ? board : localBoard).slice(0, 10);
+  const rows = boards[S.mode].slice(0, 10);
   $('board').innerHTML = '';
   if (!rows.length){ const li = document.createElement('li'); li.innerHTML = '<span class="rk">—</span><span>No scores yet. Be the first gourami.</span><span></span><span></span>'; $('board').append(li); }
-  rows.forEach((r,i) => { const li = document.createElement('li'); if (r.mine) li.className = 'me';
+  rows.forEach((r,i) => { const li = document.createElement('li'); if (r === lastEntry) li.className = 'me';
     const a = document.createElement('span'); a.className='rk'; a.textContent = String(i+1).padStart(2,'0');
     const b = document.createElement('span'); b.textContent = r.name;
-    const c = document.createElement('span'); c.className='md'; c.textContent = '';
+    const c = document.createElement('span'); c.className='md'; c.textContent = r.mode === 'arcade' ? 'LV ' + (r.level || 1) : '';
     const d = document.createElement('span'); d.className='sc'; d.textContent = r.score;
     li.append(a,b,c,d); $('board').append(li); });
-  $('boardNote').textContent = db ? 'Shared with everyone who plays this page. Your best run is kept.' : 'Scores saved in this browser.';
+  $('boardNote').textContent = (S.mode === 'arcade' ? 'Arcade' : 'Training') + ' scores saved in this browser.';
 }
 $('nameIn').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9 ._-]/g,''); });
-$('nameForm').addEventListener('submit', async e => {
+$('nameForm').addEventListener('submit', e => {
   e.preventDefault();
   const name = ($('nameIn').value.trim() || 'GOURAMI').slice(0,10);
-  $('saveBtn').disabled = true; $('nameIn').disabled = true;
-  const entry = { name, score: S.score, mode: S.mode, at: Date.now() };
-  localBoard.push(entry); localBoard.sort((a,b) => b.score - a.score); localBoard = localBoard.slice(0, 25);
-  try { localStorage.setItem('gp.board', JSON.stringify(localBoard)); } catch(err){}
-  if (db && me){
-    try { const ref = db.doc('scores/' + me); const cur = await ref.get(); const prev = cur.exists ? cur.data() : null;
-      if (!prev || entry.score > (prev.score || 0)) await ref.set(entry); else $('boardNote').textContent = `Your best is still ${prev.score}.`; }
-    catch(err){ db = null; renderBoard(); $('boardNote').textContent = 'Couldn’t reach the shared board, so this score is saved in this browser.'; return; }
-  } else renderBoard();
+  $('saveBtn').disabled = true; $('nameIn').disabled = true; $('nameIn').blur();
+  const entry = { name, score: S.score, mode: S.mode, level: S.mode === 'arcade' ? A.level : 0, at: Date.now() };
+  lastEntry = entry; const bd = boards[S.mode]; bd.push(entry); bd.sort((a,b) => b.score - a.score); boards[S.mode] = bd.slice(0, 25);
+  try { localStorage.setItem('qg.board.' + S.mode, JSON.stringify(boards[S.mode])); } catch(err){}
+  renderBoard();
 });
-(async () => {
-  try {
-    if (!window.claude || !claude.use) return;
-    const [d, u] = await Promise.all([claude.use('db'), claude.use('user')]);
-    if (!d) return;
-    try { me = u ? await u.id() : null; } catch(e){ me = null; }
-    if (!me) return;
-    db = d;
-    unsub = db.collection('scores').orderBy('score','desc').limit(10).onSnapshot(snap => {
-      board = snap.docs.map(x => ({ ...x.data(), mine: x.id === me })).filter(r => typeof r.score === 'number' && typeof r.name === 'string');
-      renderBoard();
-    }, () => { db = null; renderBoard(); });
-  } catch(e){ db = null; }
-})();
+
+/* ---------- arcade ---------- */
+const NEBULAE = [['ORION NEBULA',330],['CRAB NEBULA',20],['HELIX NEBULA',190],['LAGOON NEBULA',300],['EAGLE NEBULA',35],['CAT’S EYE NEBULA',160],['RING NEBULA',265],['CARINA NEBULA',15],['BUTTERFLY NEBULA',210],['TARANTULA NEBULA',345],['HORSEHEAD NEBULA',350],['VEIL NEBULA',240]];
+const SNACKS = [['COMET DUST','#cfe0c2',5,30],['RED DWARF','#ff6b5a',10,26],['YELLOW STAR','#ffd166',15,18],['WHITE DWARF','#f4f1ff',20,12],['BLUE GIANT','#6fb7ff',30,8],['PULSAR','#ff8ad8',40,4],['NEUTRON STAR','#b9fff3',50,2]];
+const A = { y:0, vy:0, lives:3, level:1, correct:0, combo:0, best:0, inv:0, objs:[], wave:null, waveCool:1.2, rockT:2, snackT:.6, holeT:14, texts:[], shake:0, hintWaves:2, toneT:0 };
+const fx = () => Math.max(W * .22, 530 * fscale() + 12);   // keep the tail on screen on narrow phones
+const fscale = () => Math.min(W, H) / 2500 * (W < 600 ? 1.35 : 1);
+const crossTime = () => Math.max(3, 7.2 - (A.level-1) * .38);
+const vx = () => (W + 240) / crossTime();
+function startArcade(){
+  Object.assign(A, { y: H/2, vy:0, lives:3, level:1, correct:0, combo:0, best:0, inv:0, objs:[], wave:null, waveCool:1.2, rockT:2.5, snackT:.6, holeT:16, texts:[], shake:0, hintWaves:2 });
+  S.score = 0; S.phase = 'arcade'; $('hScore').textContent = 0;
+  $('menu').hidden = true; $('end').hidden = true; $('hud').hidden = false; $('hint').hidden = false; $('pad').hidden = false; $('toast').hidden = true;
+  $('hBarWrap').hidden = true; $('hint').textContent = 'Eat the nebula that matches the tone · ↑ ↓ or drag to swim';
+  hud();
+}
+function hud(){ $('hLeft').innerHTML = 'LEVEL <b>' + A.level + '</b>'; $('hTarget').textContent = 'LIVES ' + '●'.repeat(Math.max(0,A.lives)) + '○'.repeat(Math.max(0,3-A.lives)); $('hScore').textContent = S.score; }
+function say(txt, col, x, y, big){ A.texts.push({ txt, col, x: x ?? fx(), y: y ?? A.y - 60, t: 0, big: !!big }); }
+function hurt(why){
+  if (A.inv > 0) return; A.lives--; A.combo = 0; A.inv = 1.6; A.shake = .35; chime(false); say(why, '#ff8ad8', fx(), A.y - 70, true); hud();
+  if (A.lives <= 0) setTimeout(finishArcade, 900);
+}
+function spawnWave(){
+  const gap = Math.max(1/3, 2.2 - .18*(A.level-1));
+  const lo = midiOf(80), hi = midiOf(12000) - gap*12;
+  const m1 = lo + Math.random()*(hi - lo), m2 = m1 + gap*12;
+  const pair = Math.random() < .5 ? [m1, m2] : [m2, m1];
+  const okIdx = Math.random() < .5 ? 0 : 1;
+  const R = Math.max(40, Math.min(84, Math.min(W, H) * .085));
+  const tTop = top() + R, mid = H/2, bBot = bottom() - R;
+  const ys = [tTop + Math.random()*Math.max(1, mid - R*.6 - tTop), mid + R*.6 + Math.random()*Math.max(1, bBot - mid - R*.6)];
+  if (Math.random() < .5) ys.reverse();
+  const names = NEBULAE.slice().sort(() => Math.random() - .5);
+  A.wave = { done:false, nebs: pair.map((m,i) => ({ x: W + R + i*R*.6, y: ys[i], r: R, m, ok: i === okIdx, name: names[i][0], hue: names[i][1], ph: Math.random()*6.28, fade: 1, eaten: false })) };
+  toneOn(freqOf(pair[okIdx]));
+}
+function resolveWave(n){
+  const w = A.wave; if (w.done) return; w.done = true;
+  const target = w.nebs.find(q => q.ok);
+  setTimeout(toneOff, 250);
+  if (n && n.ok){
+    A.correct++; A.combo++; A.best = Math.max(A.best, A.combo);
+    const p = 100*A.level + 25*(A.combo-1); S.score += p; chime(true);
+    say('+' + p + '  ' + n.name, `hsl(${n.hue} 90% 80%)`, n.x, n.y - n.r - 10, true);
+    say(hz(freqOf(n.m)).toUpperCase() + (A.combo > 1 ? '  ·  COMBO ×' + A.combo : ''), '#fff6e8', n.x, n.y - n.r + 18);
+    if (A.correct % 3 === 0){ A.level++; $('tBig').textContent = 'LEVEL ' + A.level; $('tSmall').textContent = 'closer frequencies · faster space'; $('toast').style.top = '18%'; $('toast').hidden = false; setTimeout(() => $('toast').hidden = true, 1600); }
+  } else if (n){
+    A.inv = 0; hurt('WRONG NEBULA'); say('THE TONE WAS ' + hz(freqOf(target.m)).toUpperCase(), '#fff6e8', fx(), A.y - 40);
+  } else {
+    A.inv = 0; hurt('MISSED'); say('THE TONE WAS ' + hz(freqOf(target.m)).toUpperCase(), '#fff6e8', fx(), A.y - 40);
+  }
+  hud(); A.waveCool = 1.1; if (A.hintWaves > 0) A.hintWaves--;
+}
+function rockShape(){ const pts = []; const n = 9; for (let i=0;i<n;i++){ const a = i/n*6.283, r = .72 + Math.random()*.32; pts.push([Math.cos(a)*r, Math.sin(a)*r]); } return pts; }
+function arcadeStep(dt){
+  const X = fx(), sc = fscale(), v = vx();
+  // movement
+  const moving = S.holdUp || S.holdDn; S.hold = moving ? S.hold + dt : 0;
+  if (S.dragY !== null){ const d = S.dragY - A.y; A.vy = d*9; A.y += d*Math.min(1, dt*11); }
+  else { const dir = (S.holdDn?1:0) - (S.holdUp?1:0); const tv = dir * (H*.55 + Math.min(H*.6, S.hold*H*.9)); A.vy += (tv - A.vy)*Math.min(1, dt*10); A.y += A.vy*dt; }
+  // black hole pull
+  for (const o of A.objs) if (o.k === 'hole'){ const dx = o.x - X, dy = o.y - A.y, d = Math.hypot(dx, dy); if (d < o.pull){ A.y += Math.sign(dy) * (1 - d/o.pull) * H*.55 * dt; } }
+  A.y = Math.max(top(), Math.min(bottom(), A.y));
+  A.inv = Math.max(0, A.inv - dt); A.shake = Math.max(0, A.shake - dt);
+  // spawns
+  if (!A.wave || A.wave.done){ A.waveCool -= dt; if (A.waveCool <= 0 && A.lives > 0) spawnWave(); }
+  A.rockT -= dt; if (A.rockT <= 0){ const r = Math.max(14, Math.min(W,H)*(.025 + Math.random()*.03)); A.objs.push({ k:'rock', x: W + r, y: top() + Math.random()*(bottom()-top()), r, sp: v*(.85 + Math.random()*.5), rot: Math.random()*6, vr: (Math.random()-.5)*2, shape: rockShape() }); A.rockT = Math.max(.55, 2.6 - A.level*.2) * (.6 + Math.random()*.8); }
+  A.snackT -= dt; if (A.snackT <= 0){ let roll = Math.random()*100, pick = SNACKS[0]; for (const s of SNACKS){ if ((roll -= s[3]) < 0){ pick = s; break; } } A.objs.push({ k:'snack', x: W + 10, y: top() + Math.random()*(bottom()-top()), r: 7 + pick[2]/12, sp: v*.9, s: pick, ph: Math.random()*6 }); A.snackT = .45 + Math.random()*.6; }
+  if (A.level >= 3){ A.holeT -= dt; if (A.holeT <= 0){ const r = Math.max(18, Math.min(W,H)*.03); A.objs.push({ k:'hole', x: W + r*6, y: top() + Math.random()*(bottom()-top()), r, pull: r*7, sp: v*.55, ph: 0 }); A.holeT = Math.max(7, 16 - A.level); } }
+  // move + collide
+  const hitR = 150*sc;
+  for (const o of A.objs){ o.x -= o.sp*dt; if (o.rot !== undefined) o.rot += o.vr*dt; if (o.ph !== undefined) o.ph += dt*3;
+    const d = Math.hypot(o.x - (X + 40*sc), o.y - A.y);
+    if (o.k === 'rock' && !o.hit && d < o.r*.85 + hitR*.75){ o.hit = true; hurt('ASTEROID!'); }
+    if (o.k === 'hole' && !o.hit && d < o.r + hitR*.4){ o.hit = true; hurt('SWALLOWED BY A BLACK HOLE'); }
+    if (o.k === 'snack' && !o.dead && d < o.r + hitR){ o.dead = true; S.score += o.s[2]; say('+' + o.s[2] + ' ' + o.s[0], o.s[1], o.x, o.y - 14); hud(); }
+  }
+  A.objs = A.objs.filter(o => o.x > -o.r*8 && !o.dead);
+  if (A.wave){ for (const n of A.wave.nebs){ n.x -= v*dt; n.ph += dt;
+      if (!A.wave.done && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*.8 + hitR*.6){ n.eaten = true; resolveWave(n); }
+      if (A.wave.done) n.fade = Math.max(0, n.fade - dt*2.2); }
+    if (!A.wave.done && A.wave.nebs.every(n => n.x < X - n.r - hitR)) resolveWave(null);
+    if (A.wave.done && A.wave.nebs.every(n => n.fade <= 0 || n.x < -n.r*2)) A.wave = null; }
+  // draw
+  ctx.save(); if (A.shake > 0) ctx.translate((Math.random()-.5)*14*A.shake, (Math.random()-.5)*14*A.shake);
+  for (const o of A.objs){
+    if (o.k === 'snack'){ const tw = .7 + .3*Math.sin(o.ph); const g = ctx.createRadialGradient(o.x,o.y,0,o.x,o.y,o.r*3); g.addColorStop(0,o.s[1]); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.globalAlpha = .55*tw; ctx.fillStyle = g; ctx.fillRect(o.x-o.r*3,o.y-o.r*3,o.r*6,o.r*6); ctx.globalAlpha = 1;
+      ctx.fillStyle = o.s[1]; const k = o.r*(.9+.2*tw); ctx.beginPath(); ctx.moveTo(o.x,o.y-k); ctx.quadraticCurveTo(o.x,o.y,o.x+k,o.y); ctx.quadraticCurveTo(o.x,o.y,o.x,o.y+k); ctx.quadraticCurveTo(o.x,o.y,o.x-k,o.y); ctx.quadraticCurveTo(o.x,o.y,o.x,o.y-k); ctx.fill(); }
+    if (o.k === 'rock'){ ctx.save(); ctx.translate(o.x,o.y); ctx.rotate(o.rot); ctx.beginPath(); o.shape.forEach(([a,b],i) => i ? ctx.lineTo(a*o.r,b*o.r) : ctx.moveTo(a*o.r,b*o.r)); ctx.closePath();
+      const g = ctx.createLinearGradient(-o.r,-o.r,o.r,o.r); g.addColorStop(0,'#8a7f9e'); g.addColorStop(1,'#2e2840'); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = 'rgba(233,225,255,.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = 'rgba(20,16,36,.45)'; ctx.beginPath(); ctx.arc(o.r*.25,-o.r*.2,o.r*.18,0,6.283); ctx.arc(-o.r*.3,o.r*.25,o.r*.12,0,6.283); ctx.fill(); ctx.restore(); }
+    if (o.k === 'hole'){ const g = ctx.createRadialGradient(o.x,o.y,o.r*.8,o.x,o.y,o.pull); g.addColorStop(0,'rgba(255,170,90,.55)'); g.addColorStop(.18,'rgba(255,79,184,.25)'); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(o.x-o.pull,o.y-o.pull,o.pull*2,o.pull*2);
+      ctx.save(); ctx.translate(o.x,o.y); ctx.rotate(o.ph*.6); ctx.strokeStyle='rgba(255,214,150,.8)'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(0,0,o.r*2.1,o.r*.7,0,0,6.283); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,6.283); ctx.fill(); }
+  }
+  if (A.wave) for (const n of A.wave.nebs){ if (n.fade <= 0) continue; ctx.globalAlpha = n.fade;
+    for (let k=0;k<4;k++){ const ox = Math.cos(n.ph*.7 + k*1.7)*n.r*.35, oy = Math.sin(n.ph*.9 + k*2.1)*n.r*.3; const rr = n.r*(1.05 - k*.12);
+      const g = ctx.createRadialGradient(n.x+ox,n.y+oy,0,n.x+ox,n.y+oy,rr*1.4); g.addColorStop(0,`hsla(${n.hue + k*25},95%,${78 - k*6}%,.75)`); g.addColorStop(.5,`hsla(${n.hue + k*25},85%,55%,.25)`); g.addColorStop(1,`hsla(${n.hue},80%,40%,0)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x+ox,n.y+oy,rr*1.4,0,6.283); ctx.fill(); }
+    ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(n.x,n.y,3,0,6.283); ctx.fill();
+    ctx.font = `${Math.round(Math.max(13, n.r*.32))}px Silkscreen, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lab = hz(freqOf(n.m)).toUpperCase(); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.75)'; ctx.strokeText(lab, n.x, n.y + n.r*.95); ctx.fillStyle = '#fff6e8'; ctx.fillText(lab, n.x, n.y + n.r*.95);
+    ctx.globalAlpha = 1; }
+  // gourami
+  const blink = A.inv > 0 && Math.floor(A.inv*10) % 2 === 0;
+  const tl = easeTilt(Math.max(-.3, Math.min(.3, A.vy/H*.4)), dt);
+  if (!blink) drawFish(X, A.y + Math.sin(T*1.4)*3, sc, T, tl + Math.sin(T*.9)*.03);
+  // floating texts
+  for (const t of A.texts){ t.t += dt; t.y -= dt*28; ctx.globalAlpha = Math.max(0, 1 - t.t/1.8); ctx.font = (t.big ? 18 : 13) + 'px Silkscreen, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.7)'; ctx.strokeText(t.txt, t.x, t.y); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x, t.y); }
+  ctx.globalAlpha = 1; A.texts = A.texts.filter(t => t.t < 1.8);
+  if (A.hintWaves > 0 && A.wave && !A.wave.done){ ctx.font = '13px Silkscreen, monospace'; ctx.textAlign='center'; ctx.fillStyle='rgba(201,184,255,.85)'; ctx.fillText('LISTEN · EAT THE MATCHING NEBULA', W/2, top() + 10); }
+  ctx.restore();
+}
+function finishArcade(){
+  if (S.phase !== 'arcade') return;
+  S.phase = 'end'; toneOff(); $('hud').hidden = true; $('hint').hidden = true; $('pad').hidden = true; $('toast').hidden = true;
+  const sc = S.score;
+  $('eRank').textContent = sc >= 6000 ? 'Celestial Ear' : sc >= 3500 ? 'Nebula Navigator' : sc >= 1800 ? 'Comet Chaser' : sc >= 700 ? 'Stardust Drifter' : 'Gourami Fry';
+  $('eMode').textContent = 'ARCADE · LEVEL ' + A.level;
+  $('eL1').textContent = 'Score'; $('eL2').textContent = 'Nebulas eaten'; $('eL3').textContent = 'Best combo';
+  $('eScore').textContent = sc; $('eAvg').textContent = A.correct; $('ePerf').textContent = '×' + A.best; $('eRounds').hidden = true;
+  $('saveBtn').disabled = false; $('nameIn').disabled = false; $('nameIn').value = ''; $('end').hidden = false;
+  if (!matchMedia('(pointer:coarse)').matches) setTimeout(() => { try { $('nameIn').focus(); } catch(e){} }, 60);
+  renderBoard();
+}
 
 const boot = () => { resize(); renderBoard(); requestAnimationFrame(frame); };
 boot();
