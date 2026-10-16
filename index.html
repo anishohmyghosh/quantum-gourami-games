@@ -334,8 +334,8 @@ let anBody, anFin, btBody, btFin;
 function charGrads(){
   anBody = ctx.createLinearGradient(0,-180,0,180); anBody.addColorStop(0,'#2a3bb4'); anBody.addColorStop(.5,'#5a66ee'); anBody.addColorStop(1,'#b088ff');
   anFin = ctx.createLinearGradient(0,0,-320,0); anFin.addColorStop(0,'rgba(118,140,255,.78)'); anFin.addColorStop(1,'rgba(190,140,255,.14)');
-  btBody = ctx.createLinearGradient(0,-100,0,100); btBody.addColorStop(0,'#0a5868'); btBody.addColorStop(.5,'#16b4bc'); btBody.addColorStop(1,'#8ff3e2');
-  btFin = ctx.createLinearGradient(0,0,-430,0); btFin.addColorStop(0,'rgba(40,228,212,.82)'); btFin.addColorStop(.5,'rgba(60,190,255,.6)'); btFin.addColorStop(1,'rgba(120,130,255,.42)');
+  btBody = ctx.createLinearGradient(0,-100,0,100); btBody.addColorStop(0,'#0b4a5e'); btBody.addColorStop(.5,'#138f9e'); btBody.addColorStop(1,'#56c9c4');
+  btFin = ctx.createLinearGradient(0,0,-430,0); btFin.addColorStop(0,'rgba(36,200,196,.7)'); btFin.addColorStop(.5,'rgba(56,150,230,.46)'); btFin.addColorStop(1,'rgba(120,120,255,.26)');
 }
 function drawAngel(x, y, s, t, tilt){
   const amp = reduce ? .35 : 1;
@@ -381,7 +381,7 @@ const BT = {
 function drawBetta(x, y, s, t, tilt){
   const amp = reduce ? .35 : 1;
   ctx.save(); ctx.translate(x, y); ctx.rotate(tilt); ctx.scale(s*.84, s*.84); ctx.lineJoin = 'round';
-  const g = ctx.createRadialGradient(-120,0,20,-120,0,500); g.addColorStop(0,'rgba(46,230,214,.26)'); g.addColorStop(1,'rgba(46,230,214,0)');
+  const g = ctx.createRadialGradient(-120,0,20,-120,0,500); g.addColorStop(0,'rgba(46,210,200,.17)'); g.addColorStop(1,'rgba(46,210,200,0)');
   ctx.fillStyle = g; ctx.fillRect(-680,-500,1000,1000);
   // veil tail, billowing
   ctx.save(); ctx.translate(-196,0); ctx.rotate(Math.sin(t*2.4)*.09*amp); ctx.scale(1+Math.sin(t*2.4+1)*.05*amp, 1+Math.sin(t*2.4+.3)*.08*amp);
@@ -395,10 +395,10 @@ function drawBetta(x, y, s, t, tilt){
   // body with scales and a slow iridescent sheen
   ctx.fillStyle = btBody; ctx.fill(BT.BODY); ctx.strokeStyle = '#d8fffa'; ctx.lineWidth = 3; ctx.stroke(BT.BODY);
   ctx.save(); ctx.clip(BT.BODY);
-  ctx.strokeStyle = 'rgba(220,255,250,.24)'; ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(220,255,250,.17)'; ctx.lineWidth = 2;
   for (let c=0, sx=-200; sx<170; sx+=26, c++) for (let sy=-96 + (c%2)*11; sy<100; sy+=22){ ctx.beginPath(); ctx.arc(sx, sy, 12, Math.PI*.5, Math.PI*1.5); ctx.stroke(); }
   const sh = ((t*.35) % 1.6 - .3) * 520 - 220; const gl = ctx.createLinearGradient(sh-80,0,sh+80,0);
-  gl.addColorStop(0,'rgba(160,140,255,0)'); gl.addColorStop(.5,'rgba(190,170,255,.32)'); gl.addColorStop(1,'rgba(160,140,255,0)'); ctx.fillStyle = gl; ctx.fillRect(-220,-110,480,220);
+  gl.addColorStop(0,'rgba(160,140,255,0)'); gl.addColorStop(.5,'rgba(190,170,255,.2)'); gl.addColorStop(1,'rgba(160,140,255,0)'); ctx.fillStyle = gl; ctx.fillRect(-220,-110,480,220);
   pearlDust(t, 3, .9);
   ctx.restore();
   // pectoral flapping
@@ -725,7 +725,7 @@ function arcadeStep(dt){
       if (magnet) magnetRings(X + 40*sc, fy, MAG);
       if (ram) ramAura(X, fy, sc);
       if (phased){ ctx.globalAlpha = A.powOn ? .38 : .38 + (1 - A.ghost/.45)*.62; drawFish(X, fy, sc, T, ft); ctx.globalAlpha = 1; }
-      else drawFish(X + (ram ? 70*sc + Math.sin(T*50)*1.5 : 0), fy, sc, T, ft);
+      else drawFish(X, fy, sc, T, ft);
     }
   };
   // draw
@@ -781,7 +781,7 @@ function smash(o){
 // gourami: rings drawing in toward the fish
 function magnetRings(x, y, R){
   ctx.lineWidth = 2;
-  for (let k = 0; k < 3; k++){ const f = 1 - ((T*1.3 + k/3) % 1); ctx.strokeStyle = `rgba(255,198,239,${(1 - f)*.45})`; ctx.beginPath(); ctx.arc(x, y, 40 + f*R*.75, 0, 6.283); ctx.stroke(); }
+  for (let k = 0; k < 3; k++){ const f = 1 - ((T*.5 + k/3) % 1); ctx.strokeStyle = `rgba(255,198,239,${(1 - f)*.45})`; ctx.beginPath(); ctx.arc(x, y, 40 + f*R*.75, 0, 6.283); ctx.stroke(); }
 }
 // betta: a turquoise bow wave and speed streaks
 function ramAura(x, y, sc){
