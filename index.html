@@ -339,7 +339,8 @@ function startGame(){
   $('hLeft').innerHTML = 'ROUND <b id="hRound">1</b>/10'; $('hBarWrap').hidden = false; $('hint').textContent = '↑ ↓ or drag to change ' + (K.id === 'tempo' ? 'tempo' : 'frequency') + ' · Space to lock in early';
   Object.assign(S, { round:0, score:0, results:[], my: K.start }); $('hScore').textContent = 0;
   $('menu').hidden = true; $('end').hidden = true; $('hud').hidden = false; $('hint').hidden = false; $('pad').hidden = false;
-  newRound();
+  $('hRound').textContent = 1; $('hTarget').textContent = 'GET READY'; $('toast').hidden = true;
+  S.phase = 'intro'; S.introT = INTRO;
 }
 function finish(){
   S.phase = 'end'; K.off(); $('hud').hidden = true; $('hint').hidden = true; $('pad').hidden = true; $('toast').hidden = true;
@@ -377,6 +378,14 @@ $('mTrain').onclick = () => setMode('train'); $('mArcade').onclick = () => setMo
 $('startBtn').onclick = startGame; $('againBtn').onclick = startGame;
 $('menuBtn').onclick = () => { $('end').hidden = true; $('menu').hidden = false; S.phase = 'menu'; };
 
+/* ---------- intro: the gourami pops in and blinks before play ---------- */
+const INTRO = 1.2, INTRO_POP = .4;
+function drawIntro(x, y, sc, left, tilt){
+  const k = 1 - left / INTRO, tPop = INTRO_POP / INTRO;
+  if (k < tPop){ const q = k / tPop; const pop = q < .7 ? q/.7*1.15 : 1.15 - (q - .7)/.3*.15; drawFish(x, y, sc*pop + .0001, T, (1 - q)*1.5); }
+  else if (Math.floor(left*10) % 2 === 0) drawFish(x, y, sc, T, tilt);
+}
+
 /* ---------- loop ---------- */
 let last = performance.now(), T = 0, tiltS = 0;
 // ease the fish's pitch-up / pitch-down toward a target so turns feel fluid
@@ -392,11 +401,13 @@ function frame(now){
     S.my = Math.max(MMIN, Math.min(MMAX, S.my));
   } else { S.vy *= .9; }
   if (S.phase === 'play'){ S.tLeft -= dt; if (S.tLeft <= 0){ S.tLeft = 0; lockIn(); } }
+  if (S.phase === 'intro'){ S.introT -= dt; if (S.introT <= 0) newRound(); }
   if (S.phase === 'reveal'){ S.reveal -= dt; if (S.reveal <= 0){ S.round++; if (S.round >= ROUNDS) finish(); else newRound(); } }
   $('hBar').style.transform = `scaleX(${S.phase === 'play' ? S.tLeft/S.tMax : S.phase === 'reveal' ? 0 : 1})`;
 
   drawSky(dt, T);
   if (S.phase !== 'menu' && S.phase !== 'end') drawRuler();
+  const onStage = S.phase !== 'menu' && S.phase !== 'end';
   const fy = S.phase === 'menu' || S.phase === 'end' ? H*.55 + Math.sin(T*.8)*14 : yOf(S.my) + Math.sin(T*1.3)*3;
   if (S.phase === 'reveal'){
     const ty = yOf(S.target), good = K.near(S.my, S.target);
@@ -407,7 +418,8 @@ function frame(now){
   }
   const s = Math.min(W, H) / 1900 * (W < 600 ? 1.25 : 1);
   const tilt = easeTilt(Math.max(-.28, Math.min(.28, -S.vy*.022)), dt);
-  drawFish(W/2, fy, s, T, tilt + Math.sin(T*.9)*.03);
+  if (S.phase === 'intro') drawIntro(W/2, fy, s, S.introT, tilt);
+  else if (onStage) drawFish(W/2, fy, s, T, tilt + Math.sin(T*.9)*.03);
   requestAnimationFrame(frame);
 }
 
@@ -454,7 +466,7 @@ const fscale = () => Math.min(W, H) / 2500 * (W < 600 ? 1.35 : 1);
 const crossTime = () => Math.max(3, 7.2 - (A.level-1) * .38) + K.cross;
 const vx = () => (W + 240) / crossTime();
 function startArcade(){
-  Object.assign(A, { y: H/2, vy:0, lives:3, level:1, correct:0, combo:0, best:0, inv:0, objs:[], wave:null, waveCool:1.2, rockT:2.5, snackT:.6, holeT:16, texts:[], shake:0, hintWaves:2, sucked:null, popT:0 });
+  Object.assign(A, { y: H/2, vy:0, lives:3, level:1, correct:0, combo:0, best:0, inv:0, objs:[], wave:null, waveCool:1.2, rockT:2.5, snackT:.6, holeT:16, texts:[], shake:0, hintWaves:2, sucked:null, gone:false, introT: INTRO });
   S.score = 0; S.phase = 'arcade'; $('hScore').textContent = 0;
   $('menu').hidden = true; $('end').hidden = true; $('hud').hidden = false; $('hint').hidden = false; $('pad').hidden = false; $('toast').hidden = true;
   $('hBarWrap').hidden = true; $('hint').textContent = 'Eat the nebula that matches the ' + (K.id === 'tempo' ? 'tempo' : 'tone') + ' · ↑ ↓ or drag to swim';
@@ -508,21 +520,23 @@ function arcadeStep(dt){
   A.y = Math.max(top(), Math.min(bottom(), A.y));
   A.inv = Math.max(0, A.inv - dt); A.shake = Math.max(0, A.shake - dt);
   // spawns
-  if (!A.wave || A.wave.done){ A.waveCool -= dt; if (A.waveCool <= 0 && A.lives > 0) spawnWave(); }
-  A.rockT -= dt; if (A.rockT <= 0){ const r = Math.max(14, Math.min(W,H)*(.025 + Math.random()*.03)); A.objs.push({ k:'rock', x: W + r, y: top() + Math.random()*(bottom()-top()), r, sp: v*(.85 + Math.random()*.5), rot: Math.random()*6, vr: (Math.random()-.5)*2, shape: rockShape() }); A.rockT = Math.max(.55, 2.6 - A.level*.2) * (.6 + Math.random()*.8); }
-  A.snackT -= dt; if (A.snackT <= 0){ let roll = Math.random()*100, pick = SNACKS[0]; for (const s of SNACKS){ if ((roll -= s[3]) < 0){ pick = s; break; } } A.objs.push({ k:'snack', x: W + 10, y: top() + Math.random()*(bottom()-top()), r: 7 + pick[2]/12, sp: v*.9, s: pick, ph: Math.random()*6 }); A.snackT = .45 + Math.random()*.6; }
-  if (A.level >= 3){ A.holeT -= dt; if (A.holeT <= 0){ const r = Math.max(18, Math.min(W,H)*.03); A.objs.push({ k:'hole', x: W + r*6, y: top() + Math.random()*(bottom()-top()), r, pull: r*7, sp: v*.55, ph: 0 }); A.holeT = Math.max(7, 16 - A.level); } }
+  if (A.introT > 0){ A.introT -= dt; }
+  const live = A.introT <= 0 && !A.gone;
+  if (live && (!A.wave || A.wave.done)){ A.waveCool -= dt; if (A.waveCool <= 0 && A.lives > 0) spawnWave(); }
+  if (live) A.rockT -= dt; if (live && A.rockT <= 0){ const r = Math.max(14, Math.min(W,H)*(.025 + Math.random()*.03)); A.objs.push({ k:'rock', x: W + r, y: top() + Math.random()*(bottom()-top()), r, sp: v*(.85 + Math.random()*.5), rot: Math.random()*6, vr: (Math.random()-.5)*2, shape: rockShape() }); A.rockT = Math.max(.55, 2.6 - A.level*.2) * (.6 + Math.random()*.8); }
+  if (live) A.snackT -= dt; if (live && A.snackT <= 0){ let roll = Math.random()*100, pick = SNACKS[0]; for (const s of SNACKS){ if ((roll -= s[3]) < 0){ pick = s; break; } } A.objs.push({ k:'snack', x: W + 10, y: top() + Math.random()*(bottom()-top()), r: 7 + pick[2]/12, sp: v*.9, s: pick, ph: Math.random()*6 }); A.snackT = .45 + Math.random()*.6; }
+  if (live && A.level >= 3){ A.holeT -= dt; if (A.holeT <= 0){ const r = Math.max(18, Math.min(W,H)*.03); A.objs.push({ k:'hole', x: W + r*6, y: top() + Math.random()*(bottom()-top()), r, pull: r*7, sp: v*.55, ph: 0 }); A.holeT = Math.max(7, 16 - A.level); } }
   // move + collide
   const hitR = 150*sc;
   for (const o of A.objs){ o.x -= o.sp*dt; if (o.rot !== undefined) o.rot += o.vr*dt; if (o.ph !== undefined) o.ph += dt*3;
     const d = Math.hypot(o.x - (X + 40*sc), o.y - A.y);
-    if (o.k === 'rock' && !o.hit && !A.sucked && d < o.r*.85 + hitR*.75){ o.hit = true; hurt('ASTEROID!'); }
-    if (o.k === 'hole' && !o.hit && !A.sucked && d < o.r + hitR*.4){ o.hit = true; const free = A.inv <= 0; hurt('SWALLOWED BY A BLACK HOLE'); if (free){ A.sucked = { o, t: 0 }; A.inv += 1.1; } }
-    if (o.k === 'snack' && !o.dead && d < o.r + hitR){ o.dead = true; S.score += o.s[2]; say('+' + o.s[2] + ' ' + o.s[0], o.s[1], o.x, o.y - 14); hud(); }
+    if (o.k === 'rock' && !o.hit && !A.sucked && !A.gone && d < o.r*.85 + hitR*.75){ o.hit = true; hurt('ASTEROID!'); }
+    if (o.k === 'hole' && !o.hit && !A.sucked && !A.gone && d < o.r + hitR*.4){ o.hit = true; A.lives = 0; A.combo = 0; A.sucked = { o, t: 0 }; chime(false); say('SWALLOWED BY A BLACK HOLE', '#ff8ad8', fx(), A.y - 70, true); hud(); if (A.wave && !A.wave.done){ A.wave.done = true; setTimeout(() => K.off(), 250); } setTimeout(finishArcade, 1500); }
+    if (o.k === 'snack' && !o.dead && !A.sucked && !A.gone && d < o.r + hitR){ o.dead = true; S.score += o.s[2]; say('+' + o.s[2] + ' ' + o.s[0], o.s[1], o.x, o.y - 14); hud(); }
   }
   A.objs = A.objs.filter(o => o.x > -o.r*8 && !o.dead);
   if (A.wave){ for (const n of A.wave.nebs){ n.x -= v*dt; n.ph += dt;
-      if (!A.wave.done && !A.sucked && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*.95 + hitR*.65){ n.eaten = true; resolveWave(n); }
+      if (!A.wave.done && !A.sucked && !A.gone && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*.95 + hitR*.65){ n.eaten = true; resolveWave(n); }
       if (A.wave.done) n.fade = Math.max(0, n.fade - dt*2.2); }
     if (!A.wave.done && A.wave.nebs.every(n => n.x < X - n.r - hitR)) resolveWave(null);
     if (A.wave.done && A.wave.nebs.every(n => n.fade <= 0 || n.x < -n.r*2)) A.wave = null; }
@@ -548,17 +562,17 @@ function arcadeStep(dt){
     ctx.globalAlpha = 1; }
   // gourami
   const tl = easeTilt(Math.max(-.3, Math.min(.3, A.vy/H*.4)), dt);
-  const SUCK = 1.1, POP = .4;
-  if (A.sucked){ A.sucked.t += dt; if (A.sucked.t >= SUCK){ A.sucked = null; A.popT = POP; } }
-  else if (A.popT > 0) A.popT = Math.max(0, A.popT - dt);
-  const blink = !A.sucked && A.popT <= 0 && A.inv > 0 && Math.floor(A.inv*10) % 2 === 0;
+  const SUCK = 1.1;
+  if (A.sucked){ A.sucked.t += dt; if (A.sucked.t >= SUCK){ A.sucked = null; A.gone = true; } }
+  const blink = !A.sucked && A.inv > 0 && Math.floor(A.inv*10) % 2 === 0;
   if (A.sucked){
     const o = A.sucked.o, k = Math.min(1, A.sucked.t / SUCK), e = k*k*(3 - 2*k);          // smoothstep
     const swirl = (1 - e) * o.r * 1.6, ang = k * 9;                                        // spiral in around the hole
     const px = X + (o.x - X)*e + Math.cos(ang)*swirl*e, py = A.y + (o.y - A.y)*e + Math.sin(ang)*swirl*e;
     drawFish(px, py, sc * Math.pow(1 - e, 1.3) + .0001, T, k*k*16);
   }
-  else if (A.popT > 0){ const k = 1 - A.popT/POP; const pop = k < .7 ? k/.7*1.15 : 1.15 - (k - .7)/.3*.15; drawFish(X, A.y, sc * pop, T, (1 - k)*2); }
+  else if (A.gone){ }
+  else if (A.introT > 0) drawIntro(X, A.y, sc, A.introT, tl);
   else if (!blink) drawFish(X, A.y + Math.sin(T*1.4)*3, sc, T, tl + Math.sin(T*.9)*.03);
   // floating texts
   for (const t of A.texts){ t.t += dt; t.y -= dt*28; ctx.globalAlpha = Math.max(0, 1 - t.t/1.8); ctx.font = (t.big ? 18 : 13) + 'px Silkscreen, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.7)'; ctx.strokeText(t.txt, t.x, t.y); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x, t.y); }
