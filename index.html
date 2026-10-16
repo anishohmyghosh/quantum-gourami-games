@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="Ear-training game: swim a celestial gourami to the frequency you hear, 50 Hz to 15 kHz.">
-<title>Quantum Gourami Frequency Training</title>
+<meta name="description" content="Ear-training game: swim a celestial gourami to the frequency or tempo you hear.">
+<title>Quantum Gourami Audio Game</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,600&family=DM+Sans:wght@400;500;700&family=Silkscreen&display=swap" rel="stylesheet">
@@ -75,7 +75,7 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
 <body>
 
 
-<canvas id="sky" aria-label="Quantum Gourami frequency training: a celestial gourami swimming through space"></canvas>
+<canvas id="sky" aria-label="Quantum Gourami Audio Game: a celestial gourami swimming through space"></canvas>
 
 <div class="hud" id="hud" hidden>
   <div class="hudrow"><span id="hLeft">ROUND <b id="hRound">1</b>/10</span><span id="hTarget">LISTEN</span><span>SCORE <b id="hScore">0</b></span></div>
@@ -88,11 +88,15 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
 <section class="screen" id="menu">
   <div class="panel">
     <div class="eyebrow">QUANTUM GOURAMI</div>
-    <h1>Frequency Training</h1>
-    <p>A soft sine tone rings out across space, somewhere between 50 Hz and 15 kHz. Learn to hear where it sits, the way an engineer hunts a ringing frequency in a mix.</p>
+    <h1>Audio Game</h1>
+    <p>Train your ears two ways: hear where a sine tone sits between 50 Hz and 15 kHz, or feel the tempo of a little drum-machine groove between 60 and 180 BPM.</p>
+    <div class="modes" role="group" aria-label="Sound">
+      <button class="mode" id="kFreq" aria-pressed="true"><b>FREQUENCY</b><span>A soft sine tone, 50 Hz to 15 kHz, spaced by octaves like an EQ.</span></button>
+      <button class="mode" id="kTempo" aria-pressed="false"><b>TEMPO</b><span>An 808-style kick, snare, and hat playing rock, bachata, house, dembow, and more, 60 to 180 BPM. Half and double time count.</span></button>
+    </div>
     <div class="modes" role="group" aria-label="Mode">
-      <button class="mode" id="mTrain" aria-pressed="true"><b>TRAINING</b><span>Swim to the height of the tone. Ten rounds against a shrinking clock.</span></button>
-      <button class="mode" id="mArcade" aria-pressed="false"><b>ARCADE</b><span>Two nebulas, two frequencies. Eat the one that matches the tone, dodge asteroids and black holes. Three lives.</span></button>
+      <button class="mode" id="mTrain" aria-pressed="true"><b>TRAINING</b><span>Swim to the height that matches what you hear. Ten rounds against a shrinking clock.</span></button>
+      <button class="mode" id="mArcade" aria-pressed="false"><b>ARCADE</b><span>Two nebulas, two labels. Eat the one that matches what you hear, dodge asteroids and black holes. Three lives.</span></button>
     </div>
     <button class="go" id="startBtn">PRESS START</button>
     <div class="plays" id="plays" hidden></div>
@@ -102,7 +106,7 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
 
 <section class="screen" id="end" hidden>
   <div class="panel">
-    <div class="eyebrow" id="eMode">FREQUENCY TRAINING</div>
+    <div class="eyebrow" id="eMode">TRAINING</div>
     <h2 id="eRank">Nebula Navigator</h2>
     <div class="stats">
       <div class="stat"><small id="eL1">Score</small><b id="eScore">0</b></div>
@@ -141,9 +145,9 @@ const freqOf = m => 440*Math.pow(2,(m-69)/12);
 const nameOf = m => { const r = Math.round(m); return NOTES[(r%12+12)%12] + (Math.floor(r/12)-1); };
 const hz = f => f >= 1000 ? (f/1000).toFixed(f >= 10000 ? 1 : 2).replace(/\.?0+$/,'') + ' kHz' : Math.round(f) + ' Hz';
 const top = () => Math.max(90, H*.14), bottom = () => H - Math.max(70, H*.1);
-const yOf = m => { const t = (m - midiOf(FMIN)) / (midiOf(FMAX) - midiOf(FMIN)); return bottom() - t*(bottom()-top()); };
-const mOf = y => midiOf(FMIN) + (bottom()-y)/(bottom()-top()) * (midiOf(FMAX)-midiOf(FMIN));
-const MMIN = midiOf(FMIN), MMAX = midiOf(FMAX);
+let MMIN = midiOf(FMIN), MMAX = midiOf(FMAX);
+const yOf = m => { const t = (m - MMIN) / (MMAX - MMIN); return bottom() - t*(bottom()-top()); };
+const mOf = y => MMIN + (bottom()-y)/(bottom()-top()) * (MMAX - MMIN);
 
 /* ---------- audio ---------- */
 let ac = null, tOsc, tGain, hOsc, hGain, hFilt;
@@ -157,10 +161,70 @@ function audioInit(){
 function toneOn(f){ const t = ac.currentTime; tOsc.frequency.setValueAtTime(f, t); tGain.gain.cancelScheduledValues(t); tGain.gain.setValueAtTime(tGain.gain.value, t); tGain.gain.linearRampToValueAtTime(.16*weight(f), t+.35); }
 function weight(f){ return f < 120 ? 1.35 : f > 8000 ? .45 : f > 4000 ? .6 : f > 2000 ? .8 : 1; }
 function toneOff(){ if(!ac) return; const t = ac.currentTime; tGain.gain.cancelScheduledValues(t); tGain.gain.setValueAtTime(tGain.gain.value,t); tGain.gain.linearRampToValueAtTime(0, t+.4); }
-function humSet(on){ if(!ac) return; const t = ac.currentTime; hGain.gain.cancelScheduledValues(t); hGain.gain.setTargetAtTime(on ? .06*weight(freqOf(S.my)) : 0, t, .08); }
 function chime(good){ if(!ac) return; const t = ac.currentTime;
   [0, good ? 7 : 3, 12].forEach((st,i) => { const o = ac.createOscillator(), g = ac.createGain(); o.type='sine'; o.frequency.value = 880*Math.pow(2,st/12);
     g.gain.setValueAtTime(0,t+i*.08); g.gain.linearRampToValueAtTime(.06,t+i*.08+.02); g.gain.exponentialRampToValueAtTime(.0001,t+i*.08+.6); o.connect(g).connect(ac.destination); o.start(t+i*.08); o.stop(t+i*.08+.7); }); }
+
+/* ---------- tiny 808-ish drum machine (16th-note steps) ---------- */
+const GROOVES = [
+  { name:'ROCK',      k:'x.......x.x.....', s:'....x.......x...', h:'x.x.x.x.x.x.x.x.' },
+  { name:'BACHATA',   k:'x.......x.......', s:'............x.x.', h:'xxxxxxxxxxxxxxxx' },
+  { name:'HOUSE',     k:'x...x...x...x...', s:'....x.......x...', h:'..x...x...x...x.' },
+  { name:'BOOM BAP',  k:'x......x..x.....', s:'....x.......x...', h:'x.x.x.x.x.x.x.x.' },
+  { name:'DEMBOW',    k:'x...x...x...x...', s:'...x..x....x..x.', h:'x.x.x.x.x.x.x.x.' },
+  { name:'TRAP',      k:'x.........x.....', s:'........x.......', h:'x.x.x.x.xxx.x.xx' },
+  { name:'BOSSA',     k:'x..x....x..x....', s:'x..x..x...x..x..', h:'x.x.x.x.x.x.x.x.' },
+  { name:'BREAKBEAT', k:'x.........x.....', s:'....x..x.x..x...', h:'x.x.x.x.x.x.x.x.' },
+];
+let noiseBuf = null, drumBus = null;
+function drumsInit(){
+  if (noiseBuf) return;
+  noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  drumBus = ac.createGain(); drumBus.gain.value = .55; const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 9000; drumBus.connect(lp).connect(ac.destination);
+}
+function kick(t){ const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(45,t+.12);
+  g.gain.setValueAtTime(.9,t); g.gain.exponentialRampToValueAtTime(.001,t+.45); o.connect(g).connect(drumBus); o.start(t); o.stop(t+.5); }
+function snare(t){ const n = ac.createBufferSource(); n.buffer = noiseBuf; const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1800; bp.Q.value=.8; const g = ac.createGain();
+  g.gain.setValueAtTime(.45,t); g.gain.exponentialRampToValueAtTime(.001,t+.18); n.connect(bp).connect(g).connect(drumBus); n.start(t); n.stop(t+.2);
+  const o = ac.createOscillator(), og = ac.createGain(); o.type='triangle'; o.frequency.value=190; og.gain.setValueAtTime(.3,t); og.gain.exponentialRampToValueAtTime(.001,t+.1); o.connect(og).connect(drumBus); o.start(t); o.stop(t+.12); }
+function hat(t, acc){ const n = ac.createBufferSource(); n.buffer = noiseBuf; const hp = ac.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=7000; const g = ac.createGain();
+  g.gain.setValueAtTime(acc ? .2 : .11,t); g.gain.exponentialRampToValueAtTime(.001,t+.05); n.connect(hp).connect(g).connect(drumBus); n.start(t); n.stop(t+.06); }
+const beat = { on:false, bpm:120, groove:GROOVES[0], step:0, next:0, timer:null,
+  start(bpm){ drumsInit(); this.bpm = bpm; let g; do { g = GROOVES[Math.floor(Math.random()*GROOVES.length)]; } while (g === this.groove && GROOVES.length > 1); this.groove = g;
+    this.step = 0; this.next = ac.currentTime + .08; this.on = true; if (!this.timer) this.timer = setInterval(() => this.tick(), 25); },
+  stop(){ this.on = false; },
+  tick(){ if (!this.on) return; const sp = 60/this.bpm/4;
+    while (this.next < ac.currentTime + .12){ const i = this.step % 16, g = this.groove;
+      if (g.k[i] === 'x') kick(this.next); if (g.s[i] === 'x') snare(this.next); if (g.h[i] === 'x') hat(this.next, i % 4 === 0);
+      this.next += sp; this.step++; } } };
+
+/* ---------- the two sound kinds share one axis; positions are midi notes or BPM ---------- */
+const sgn = e => e >= 0 ? '+' : '−';
+// tempo: a guess at half or double the target counts too; return the error against the closest of those
+const tempoMatch = (a, b) => { let best = { e: a - b, how: '' };
+  for (const [mul, how] of [[.5, 'HALF TIME'], [2, 'DOUBLE TIME']]) { const c = b*mul; if (Math.abs(a - c) < Math.abs(best.e)) best = { e: a - c, how }; } return best; };
+const KINDS = {
+  freq: { id:'freq', label:'FREQUENCY', noun:'TONE', min: midiOf(50), max: midiOf(15000),
+    fmt: m => hz(freqOf(m)), err: (a,b) => (a-b)/12, how: () => '', errTxt: e => sgn(e) + Math.abs(e).toFixed(2) + ' oct', avgTxt: v => v.toFixed(2) + ' oct',
+    pts: (e,frac) => Math.round(1000*Math.exp(-Math.abs(e)/.3) + (Math.abs(e) <= 1/6 ? frac*150 : 0)),
+    label: e => { e = Math.abs(e); return e <= 1/12 ? 'PERFECT' : e <= 1/6 ? 'GREAT' : e <= 1/3 ? 'CLOSE' : e <= 1 ? 'NEAR' : 'LOST IN SPACE'; },
+    perfect: e => Math.abs(e) <= 1/12, good: e => Math.abs(e) <= 1/6, near: (a,b) => Math.abs(a-b) <= 2,
+    pick: cur => { const lo = midiOf(60), hi = midiOf(12000); let m; do { m = lo + Math.random()*(hi - lo); } while (Math.abs(m - cur) < 9); return m; },
+    pair: lv => { const gap = Math.max(1/3, 2.2 - .18*(lv-1)); const lo = midiOf(80), hi = midiOf(12000) - gap*12; const m1 = lo + Math.random()*(hi - lo); return [m1, m1 + gap*12]; },
+    on: m => toneOn(freqOf(m)), off: () => toneOff(), roundBase: 10, cross: 0, start: midiOf(1000),
+    ticks: { major:[50,100,200,500,1000,2000,5000,10000,15000].map(midiOf), minor:[60,70,80,90,150,300,400,600,700,800,900,1500,3000,4000,6000,7000,8000,9000,12000].map(midiOf), lab: m => { const f = Math.round(freqOf(m)); return f >= 1000 ? (f/1000)+'k' : String(f); } } },
+  tempo: { id:'tempo', label:'TEMPO', noun:'BEAT', min: 60, max: 180,
+    fmt: m => Math.round(m) + ' BPM', err: (a,b) => tempoMatch(a,b).e, how: (a,b) => tempoMatch(a,b).how, errTxt: e => sgn(e) + Math.round(Math.abs(e)) + ' BPM', avgTxt: v => v.toFixed(1) + ' BPM',
+    pts: (e,frac) => Math.round(1000*Math.exp(-Math.abs(e)/8) + (Math.abs(e) <= 5 ? frac*150 : 0)),
+    label: e => { e = Math.abs(e); return e <= 2 ? 'PERFECT' : e <= 5 ? 'GREAT' : e <= 10 ? 'CLOSE' : e <= 25 ? 'NEAR' : 'LOST IN SPACE'; },
+    perfect: e => Math.abs(e) <= 2, good: e => Math.abs(e) <= 5, near: (a,b) => Math.abs(tempoMatch(a,b).e) <= 5,
+    pick: cur => { let m; do { m = 60 + Math.round(Math.random()*120); } while (Math.abs(m - cur) < 15); return m; },
+    pair: lv => { const gap = Math.max(6, Math.round(50 - 5*(lv-1))); const m1 = 60 + Math.round(Math.random()*(120 - gap)); return [m1, m1 + gap]; },  // max ratio 110/60 < 2, so the two labels are never half/double of each other
+    on: m => beat.start(m), off: () => beat.stop(), roundBase: 12, cross: 2.5, start: 120,
+    ticks: { major:[60,80,100,120,140,160,180], minor:[70,90,110,130,150,170], lab: m => String(m) } },
+};
+let K = KINDS.freq;
+function setKind(id){ K = KINDS[id]; MMIN = K.min; MMAX = K.max; $('kFreq').setAttribute('aria-pressed', id==='freq'); $('kTempo').setAttribute('aria-pressed', id==='tempo'); }
 
 /* ---------- the gourami (same drawing as the poster, animated) ---------- */
 const P = s => new Path2D(s);
@@ -242,56 +306,51 @@ function drawSky(dt, t){
 function drawRuler(){
   // note ruler on the right edge: A and C labels, faint semitone ticks
   const x = W - 16; ctx.font = '11px Silkscreen, monospace'; ctx.textAlign='right'; ctx.textBaseline='middle';
-  const major = [50,100,200,500,1000,2000,5000,10000,15000];
-  const minor = [60,70,80,90,150,300,400,600,700,800,900,1500,3000,4000,6000,7000,8000,9000,12000];
   ctx.lineWidth = 1;
-  for (const f of minor){ const y = yOf(midiOf(f)); ctx.strokeStyle='rgba(201,184,255,.14)'; ctx.beginPath(); ctx.moveTo(x-7,y); ctx.lineTo(x,y); ctx.stroke(); }
-  for (const f of major){ const y = yOf(midiOf(f)); ctx.strokeStyle='rgba(201,184,255,.35)'; ctx.beginPath(); ctx.moveTo(x-14,y); ctx.lineTo(x,y); ctx.stroke();
-    ctx.fillStyle='rgba(201,184,255,.6)'; ctx.fillText(f >= 1000 ? (f/1000)+'k' : String(f), x-18, y); }
+  for (const m of K.ticks.minor){ const y = yOf(m); ctx.strokeStyle='rgba(201,184,255,.14)'; ctx.beginPath(); ctx.moveTo(x-7,y); ctx.lineTo(x,y); ctx.stroke(); }
+  for (const m of K.ticks.major){ const y = yOf(m); ctx.strokeStyle='rgba(201,184,255,.35)'; ctx.beginPath(); ctx.moveTo(x-14,y); ctx.lineTo(x,y); ctx.stroke();
+    ctx.fillStyle='rgba(201,184,255,.6)'; ctx.fillText(K.ticks.lab(m), x-18, y); }
 }
 
 /* ---------- game state ---------- */
 const S = { phase:'menu', mode:'train', round:0, score:0, results:[], my: midiOf(1000), vy:0, target:0, tLeft:0, tMax:1, reveal:0, holdUp:false, holdDn:false, dragY:null, hold:0 };
 const ROUNDS = 10;
-const roundTime = r => 10 * Math.pow(.86, r);  // 10s → about 2.6s by round 10
-function pts(oct, frac){ const base = 1000*Math.exp(-Math.abs(oct)/.3); const bonus = Math.abs(oct) <= 1/6 ? frac*150 : 0; return Math.round(base + bonus); }
-const label = o => { o = Math.abs(o); return o <= 1/12 ? 'PERFECT' : o <= 1/6 ? 'GREAT' : o <= 1/3 ? 'CLOSE' : o <= 1 ? 'NEAR' : 'LOST IN SPACE'; };
-const octTxt = o => (o >= 0 ? '+' : '−') + Math.abs(o).toFixed(2) + ' oct';
+const roundTime = r => K.roundBase * Math.pow(.86, r);  // frequency 10s → 2.6s; tempo 12s → 3.1s
 
 function newRound(){
-  const lo = midiOf(60), hi = midiOf(12000); let m; do { m = lo + Math.random()*(hi - lo); } while (Math.abs(m - S.my) < 9);
+  const m = K.pick(S.my);
   S.target = m; S.tMax = S.tLeft = roundTime(S.round); S.phase = 'play';
-  toneOn(freqOf(m));
-  $('hRound').textContent = S.round + 1; $('hTarget').textContent = 'LISTEN'; $('toast').hidden = true;
+  K.on(m);
+  $('hRound').textContent = S.round + 1; $('hTarget').textContent = K.id === 'tempo' ? 'LISTEN · ' + beat.groove.name : 'LISTEN'; $('toast').hidden = true;
 }
 function lockIn(){
   if (S.phase !== 'play') return;
-  const oct = (S.my - S.target) / 12, frac = S.tLeft / S.tMax, p = pts(oct, frac);
+  const oct = K.err(S.my, S.target), how = K.how(S.my, S.target), frac = S.tLeft / S.tMax, p = K.pts(oct, frac);
   S.score += p; S.results.push({oct, p}); S.phase = 'reveal'; S.reveal = 2.1;
-  toneOff(); humSet(false); chime(Math.abs(oct) <= 1/6);
-  $('hScore').textContent = S.score; $('hTarget').textContent = 'TARGET ' + hz(freqOf(S.target)).toUpperCase();
+  K.off(); chime(K.good(oct));
+  $('hScore').textContent = S.score; $('hTarget').textContent = 'TARGET ' + K.fmt(S.target).toUpperCase();
   $('toast').style.top = yOf(S.my) < H*.45 ? '62%' : '18%';
-  $('tBig').textContent = label(oct); $('tSmall').textContent = 'YOU ' + hz(freqOf(S.my)).toUpperCase() + '  ·  ' + octTxt(oct) + '  ·  +' + p; $('toast').hidden = false;
+  $('tBig').textContent = K.label(oct); $('tSmall').textContent = 'YOU ' + K.fmt(S.my).toUpperCase() + (how && Math.abs(oct) <= 10 ? '  ·  ' + how : '') + '  ·  ' + K.errTxt(oct) + '  ·  +' + p; $('toast').hidden = false;
 }
 function startGame(){
   audioInit(); if (ac.state === 'suspended') ac.resume();
   countPlay();
   if (S.mode === 'arcade') return startArcade();
-  $('hLeft').innerHTML = 'ROUND <b id="hRound">1</b>/10'; $('hBarWrap').hidden = false; $('hint').textContent = '↑ ↓ or drag to change frequency · Space to lock in early';
-  Object.assign(S, { round:0, score:0, results:[] }); $('hScore').textContent = 0;
+  $('hLeft').innerHTML = 'ROUND <b id="hRound">1</b>/10'; $('hBarWrap').hidden = false; $('hint').textContent = '↑ ↓ or drag to change ' + (K.id === 'tempo' ? 'tempo' : 'frequency') + ' · Space to lock in early';
+  Object.assign(S, { round:0, score:0, results:[], my: K.start }); $('hScore').textContent = 0;
   $('menu').hidden = true; $('end').hidden = true; $('hud').hidden = false; $('hint').hidden = false; $('pad').hidden = false;
   newRound();
 }
 function finish(){
-  S.phase = 'end'; humSet(false); $('hud').hidden = true; $('hint').hidden = true; $('pad').hidden = true; $('toast').hidden = true;
+  S.phase = 'end'; K.off(); $('hud').hidden = true; $('hint').hidden = true; $('pad').hidden = true; $('toast').hidden = true;
   const avg = S.results.reduce((a,r) => a + Math.abs(r.oct), 0) / S.results.length;
-  const perf = S.results.filter(r => Math.abs(r.oct) <= 1/12).length;
+  const perf = S.results.filter(r => K.perfect(r.oct)).length;
   const f = S.score / 10000;
   $('eRank').textContent = f >= .9 ? 'Celestial Ear' : f >= .72 ? 'Nebula Navigator' : f >= .52 ? 'Comet Chaser' : f >= .32 ? 'Stardust Drifter' : 'Gourami Fry';
-  $('eMode').textContent = 'FREQUENCY TRAINING'; $('eL1').textContent='Score'; $('eL2').textContent='Avg miss'; $('eL3').textContent='Perfects'; $('eRounds').hidden = false;
-  $('eScore').textContent = S.score; $('eAvg').textContent = avg.toFixed(2) + ' oct'; $('ePerf').textContent = perf;
+  $('eMode').textContent = K.label + ' TRAINING'; $('eL1').textContent='Score'; $('eL2').textContent='Avg miss'; $('eL3').textContent='Perfects'; $('eRounds').hidden = false;
+  $('eScore').textContent = S.score; $('eAvg').textContent = K.avgTxt(avg); $('ePerf').textContent = perf;
   const top = Math.max(...S.results.map(r => r.p), 1);
-  $('eRounds').innerHTML = ''; S.results.forEach((r,i) => { const b = document.createElement('i'); b.style.height = (r.p/top*100) + '%'; b.title = `Round ${i+1}: ${r.p} pts, ${octTxt(r.oct)}`; $('eRounds').append(b); });
+  $('eRounds').innerHTML = ''; S.results.forEach((r,i) => { const b = document.createElement('i'); b.style.height = (r.p/top*100) + '%'; b.title = `Round ${i+1}: ${r.p} pts, ${K.errTxt(r.oct)}`; $('eRounds').append(b); });
   $('saveBtn').disabled = false; $('nameIn').disabled = false; $('nameIn').value = ''; $('end').hidden = false;
   if (!matchMedia('(pointer:coarse)').matches) setTimeout(() => { try { $('nameIn').focus(); } catch(e){} }, 60);
   renderBoard();
@@ -313,6 +372,7 @@ const padHold = (btn, key) => { btn.addEventListener('pointerdown', e => { e.pre
 padHold($('pUp'), 'holdUp'); padHold($('pDn'), 'holdDn');
 
 const setMode = m => { S.mode = m; $('mTrain').setAttribute('aria-pressed', m==='train'); $('mArcade').setAttribute('aria-pressed', m==='arcade'); };
+$('kFreq').onclick = () => setKind('freq'); $('kTempo').onclick = () => setKind('tempo');
 $('mTrain').onclick = () => setMode('train'); $('mArcade').onclick = () => setMode('arcade');
 $('startBtn').onclick = startGame; $('againBtn').onclick = startGame;
 $('menuBtn').onclick = () => { $('end').hidden = true; $('menu').hidden = false; S.phase = 'menu'; };
@@ -326,11 +386,10 @@ function frame(now){
   if (S.phase === 'arcade'){ drawSky(dt*1.8, T); arcadeStep(dt); requestAnimationFrame(frame); return; }
   if (S.phase === 'play' || S.phase === 'reveal'){
     const moving = S.holdUp || S.holdDn; S.hold = moving ? S.hold + dt : 0;
-    const speed = 8 + Math.min(52, S.hold*40);          // semitones per second, accelerates while held (range is ~99 semitones)
+    const speed = (8 + Math.min(52, S.hold*40)) * (MMAX - MMIN) / 99;          // semitones per second, accelerates while held (range is ~99 semitones)
     if (S.dragY !== null){ const tm = Math.max(MMIN, Math.min(MMAX, mOf(S.dragY))); const d = tm - S.my; S.vy = d*8; S.my += d*Math.min(1, dt*10); }
     else { const dir = (S.holdUp?1:0) - (S.holdDn?1:0); S.vy = dir*speed; S.my += S.vy*dt; }
     S.my = Math.max(MMIN, Math.min(MMAX, S.my));
-    if (ac) hOsc.frequency.setTargetAtTime(freqOf(S.my), ac.currentTime, .03);
   } else { S.vy *= .9; }
   if (S.phase === 'play'){ S.tLeft -= dt; if (S.tLeft <= 0){ S.tLeft = 0; lockIn(); } }
   if (S.phase === 'reveal'){ S.reveal -= dt; if (S.reveal <= 0){ S.round++; if (S.round >= ROUNDS) finish(); else newRound(); } }
@@ -340,11 +399,11 @@ function frame(now){
   if (S.phase !== 'menu' && S.phase !== 'end') drawRuler();
   const fy = S.phase === 'menu' || S.phase === 'end' ? H*.55 + Math.sin(T*.8)*14 : yOf(S.my) + Math.sin(T*1.3)*3;
   if (S.phase === 'reveal'){
-    const ty = yOf(S.target), good = Math.abs(S.my - S.target) <= 2;
+    const ty = yOf(S.target), good = K.near(S.my, S.target);
     ctx.strokeStyle = good ? 'rgba(127,227,255,.9)' : 'rgba(255,198,239,.85)'; ctx.lineWidth = 2; ctx.setLineDash([10,10]);
     ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(W, ty); ctx.stroke(); ctx.setLineDash([]);
     ctx.font = '13px Silkscreen, monospace'; ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillStyle = ctx.strokeStyle;
-    ctx.fillText('TARGET ' + hz(freqOf(S.target)).toUpperCase(), 16, ty - 6);
+    ctx.fillText('TARGET ' + K.fmt(S.target).toUpperCase(), 16, ty - 6);
   }
   const s = Math.min(W, H) / 1900 * (W < 600 ? 1.25 : 1);
   const tilt = easeTilt(Math.max(-.28, Math.min(.28, -S.vy*.022)), dt);
@@ -353,11 +412,12 @@ function frame(now){
 }
 
 /* ---------- leaderboard (this browser, one board per mode) ---------- */
-const boards = { train: [], arcade: [] };
-for (const k of ['train','arcade']) { try { boards[k] = JSON.parse(localStorage.getItem('qg.board.' + k) || '[]'); } catch(e){ boards[k] = []; } }
+const boards = {};
+const bkey = () => K.id + '-' + S.mode;
+for (const k of ['freq-train','freq-arcade','tempo-train','tempo-arcade']) { try { boards[k] = JSON.parse(localStorage.getItem('qg.board.' + k) || (k.startsWith('freq') ? localStorage.getItem('qg.board.' + k.slice(5)) : null) || '[]'); } catch(e){ boards[k] = []; } }
 let lastEntry = null;
 function renderBoard(){
-  const rows = boards[S.mode].slice(0, 10);
+  const rows = boards[bkey()].slice(0, 10);
   $('board').innerHTML = '';
   if (!rows.length){ const li = document.createElement('li'); li.innerHTML = '<span class="rk">—</span><span>No scores yet. Be the first gourami.</span><span></span><span></span>'; $('board').append(li); }
   rows.forEach((r,i) => { const li = document.createElement('li'); if (r === lastEntry) li.className = 'me';
@@ -366,16 +426,16 @@ function renderBoard(){
     const c = document.createElement('span'); c.className='md'; c.textContent = r.mode === 'arcade' ? 'LV ' + (r.level || 1) : '';
     const d = document.createElement('span'); d.className='sc'; d.textContent = r.score;
     li.append(a,b,c,d); $('board').append(li); });
-  $('boardNote').textContent = (S.mode === 'arcade' ? 'Arcade' : 'Training') + ' scores saved in this browser.';
+  $('boardNote').textContent = (K.id === 'tempo' ? 'Tempo ' : 'Frequency ') + (S.mode === 'arcade' ? 'arcade' : 'training') + ' scores saved in this browser.';
 }
 $('nameIn').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9 ._-]/g,''); });
 $('nameForm').addEventListener('submit', e => {
   e.preventDefault();
   const name = ($('nameIn').value.trim() || 'GOURAMI').slice(0,10);
   $('saveBtn').disabled = true; $('nameIn').disabled = true; $('nameIn').blur();
-  const entry = { name, score: S.score, mode: S.mode, level: S.mode === 'arcade' ? A.level : 0, at: Date.now() };
-  lastEntry = entry; const bd = boards[S.mode]; bd.push(entry); bd.sort((a,b) => b.score - a.score); boards[S.mode] = bd.slice(0, 25);
-  try { localStorage.setItem('qg.board.' + S.mode, JSON.stringify(boards[S.mode])); } catch(err){}
+  const entry = { name, score: S.score, mode: S.mode, kind: K.id, level: S.mode === 'arcade' ? A.level : 0, at: Date.now() };
+  lastEntry = entry; const bk = bkey(), bd = boards[bk]; bd.push(entry); bd.sort((a,b) => b.score - a.score); boards[bk] = bd.slice(0, 25);
+  try { localStorage.setItem('qg.board.' + bk, JSON.stringify(boards[bk])); } catch(err){}
   renderBoard();
 });
 
@@ -391,13 +451,13 @@ const SNACKS = [['COMET DUST','#cfe0c2',5,30],['RED DWARF','#ff6b5a',10,26],['YE
 const A = { y:0, vy:0, lives:3, level:1, correct:0, combo:0, best:0, inv:0, objs:[], wave:null, waveCool:1.2, rockT:2, snackT:.6, holeT:14, texts:[], shake:0, hintWaves:2, toneT:0 };
 const fx = () => Math.max(W * .22, 530 * fscale() + 12);   // keep the tail on screen on narrow phones
 const fscale = () => Math.min(W, H) / 2500 * (W < 600 ? 1.35 : 1);
-const crossTime = () => Math.max(3, 7.2 - (A.level-1) * .38);
+const crossTime = () => Math.max(3, 7.2 - (A.level-1) * .38) + K.cross;
 const vx = () => (W + 240) / crossTime();
 function startArcade(){
   Object.assign(A, { y: H/2, vy:0, lives:3, level:1, correct:0, combo:0, best:0, inv:0, objs:[], wave:null, waveCool:1.2, rockT:2.5, snackT:.6, holeT:16, texts:[], shake:0, hintWaves:2 });
   S.score = 0; S.phase = 'arcade'; $('hScore').textContent = 0;
   $('menu').hidden = true; $('end').hidden = true; $('hud').hidden = false; $('hint').hidden = false; $('pad').hidden = false; $('toast').hidden = true;
-  $('hBarWrap').hidden = true; $('hint').textContent = 'Eat the nebula that matches the tone · ↑ ↓ or drag to swim';
+  $('hBarWrap').hidden = true; $('hint').textContent = 'Eat the nebula that matches the ' + (K.id === 'tempo' ? 'tempo' : 'tone') + ' · ↑ ↓ or drag to swim';
   hud();
 }
 function hud(){ $('hLeft').innerHTML = 'LEVEL <b>' + A.level + '</b>'; $('hTarget').textContent = 'LIVES ' + '●'.repeat(Math.max(0,A.lives)) + '○'.repeat(Math.max(0,3-A.lives)); $('hScore').textContent = S.score; }
@@ -407,9 +467,7 @@ function hurt(why){
   if (A.lives <= 0) setTimeout(finishArcade, 900);
 }
 function spawnWave(){
-  const gap = Math.max(1/3, 2.2 - .18*(A.level-1));
-  const lo = midiOf(80), hi = midiOf(12000) - gap*12;
-  const m1 = lo + Math.random()*(hi - lo), m2 = m1 + gap*12;
+  const [m1, m2] = K.pair(A.level);
   const pair = Math.random() < .5 ? [m1, m2] : [m2, m1];
   const okIdx = Math.random() < .5 ? 0 : 1;
   const R = Math.max(30, Math.min(62, Math.min(W, H) * .062));
@@ -418,22 +476,22 @@ function spawnWave(){
   if (Math.random() < .5) ys.reverse();
   const names = NEBULAE.slice().sort(() => Math.random() - .5);
   A.wave = { done:false, nebs: pair.map((m,i) => ({ x: W + R + i*R*.6, y: ys[i], r: R, m, ok: i === okIdx, name: names[i][0], hue: names[i][1], ph: Math.random()*6.28, fade: 1, eaten: false })) };
-  toneOn(freqOf(pair[okIdx]));
+  K.on(pair[okIdx]);
 }
 function resolveWave(n){
   const w = A.wave; if (w.done) return; w.done = true;
   const target = w.nebs.find(q => q.ok);
-  setTimeout(toneOff, 250);
+  setTimeout(() => K.off(), 250);
   if (n && n.ok){
     A.correct++; A.combo++; A.best = Math.max(A.best, A.combo);
     const p = 100*A.level + 25*(A.combo-1); S.score += p; chime(true);
     say('+' + p + '  ' + n.name, `hsl(${n.hue} 90% 80%)`, n.x, n.y - n.r - 10, true);
-    say(hz(freqOf(n.m)).toUpperCase() + (A.combo > 1 ? '  ·  COMBO ×' + A.combo : ''), '#fff6e8', n.x, n.y - n.r + 18);
+    say(K.fmt(n.m).toUpperCase() + (A.combo > 1 ? '  ·  COMBO ×' + A.combo : ''), '#fff6e8', n.x, n.y - n.r + 18);
     if (A.correct % 3 === 0){ A.level++; $('tBig').textContent = 'LEVEL ' + A.level; $('tSmall').textContent = 'closer frequencies · faster space'; $('toast').style.top = '18%'; $('toast').hidden = false; setTimeout(() => $('toast').hidden = true, 1600); }
   } else if (n){
-    A.inv = 0; hurt('WRONG NEBULA'); say('THE TONE WAS ' + hz(freqOf(target.m)).toUpperCase(), '#fff6e8', fx(), A.y - 40);
+    A.inv = 0; hurt('WRONG NEBULA'); say('THE ' + K.noun + ' WAS ' + K.fmt(target.m).toUpperCase(), '#fff6e8', fx(), A.y - 40);
   } else {
-    A.inv = 0; hurt('MISSED'); say('THE TONE WAS ' + hz(freqOf(target.m)).toUpperCase(), '#fff6e8', fx(), A.y - 40);
+    A.inv = 0; hurt('MISSED'); say('THE ' + K.noun + ' WAS ' + K.fmt(target.m).toUpperCase(), '#fff6e8', fx(), A.y - 40);
   }
   hud(); A.waveCool = 1.1; if (A.hintWaves > 0) A.hintWaves--;
 }
@@ -485,7 +543,7 @@ function arcadeStep(dt){
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x+ox,n.y+oy,rr*1.2,0,6.283); ctx.fill(); }
     ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(n.x,n.y,3,0,6.283); ctx.fill();
     ctx.font = `${Math.round(Math.max(13, n.r*.36))}px Silkscreen, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const lab = hz(freqOf(n.m)).toUpperCase(); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.75)'; ctx.strokeText(lab, n.x, n.y + n.r*1.25); ctx.fillStyle = '#fff6e8'; ctx.fillText(lab, n.x, n.y + n.r*1.25);
+    const lab = K.fmt(n.m).toUpperCase(); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.75)'; ctx.strokeText(lab, n.x, n.y + n.r*1.25); ctx.fillStyle = '#fff6e8'; ctx.fillText(lab, n.x, n.y + n.r*1.25);
     ctx.globalAlpha = 1; }
   // gourami
   const blink = A.inv > 0 && Math.floor(A.inv*10) % 2 === 0;
@@ -494,15 +552,15 @@ function arcadeStep(dt){
   // floating texts
   for (const t of A.texts){ t.t += dt; t.y -= dt*28; ctx.globalAlpha = Math.max(0, 1 - t.t/1.8); ctx.font = (t.big ? 18 : 13) + 'px Silkscreen, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.7)'; ctx.strokeText(t.txt, t.x, t.y); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x, t.y); }
   ctx.globalAlpha = 1; A.texts = A.texts.filter(t => t.t < 1.8);
-  if (A.hintWaves > 0 && A.wave && !A.wave.done){ ctx.font = '13px Silkscreen, monospace'; ctx.textAlign='center'; ctx.fillStyle='rgba(201,184,255,.85)'; ctx.fillText('LISTEN · EAT THE MATCHING NEBULA', W/2, top() + 10); }
+  if (A.hintWaves > 0 && A.wave && !A.wave.done){ ctx.font = '13px Silkscreen, monospace'; ctx.textAlign='center'; ctx.fillStyle='rgba(201,184,255,.85)'; ctx.fillText(K.id === 'tempo' ? 'LISTEN · ' + beat.groove.name + ' · EAT THE MATCHING TEMPO' : 'LISTEN · EAT THE MATCHING NEBULA', W/2, top() + 10); }
   ctx.restore();
 }
 function finishArcade(){
   if (S.phase !== 'arcade') return;
-  S.phase = 'end'; toneOff(); $('hud').hidden = true; $('hint').hidden = true; $('pad').hidden = true; $('toast').hidden = true;
+  S.phase = 'end'; K.off(); $('hud').hidden = true; $('hint').hidden = true; $('pad').hidden = true; $('toast').hidden = true;
   const sc = S.score;
   $('eRank').textContent = sc >= 6000 ? 'Celestial Ear' : sc >= 3500 ? 'Nebula Navigator' : sc >= 1800 ? 'Comet Chaser' : sc >= 700 ? 'Stardust Drifter' : 'Gourami Fry';
-  $('eMode').textContent = 'ARCADE · LEVEL ' + A.level;
+  $('eMode').textContent = K.label + ' ARCADE · LEVEL ' + A.level;
   $('eL1').textContent = 'Score'; $('eL2').textContent = 'Nebulas eaten'; $('eL3').textContent = 'Best combo';
   $('eScore').textContent = sc; $('eAvg').textContent = A.correct; $('ePerf').textContent = '×' + A.best; $('eRounds').hidden = true;
   $('saveBtn').disabled = false; $('nameIn').disabled = false; $('nameIn').value = ''; $('end').hidden = false;

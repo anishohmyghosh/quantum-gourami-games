@@ -1,28 +1,27 @@
-# Quantum Gourami Frequency Training
+# Quantum Gourami Audio Game
 
-A small ear-training game. A soft sine tone plays somewhere between 50 Hz and 15 kHz; swim the celestial gourami to the height that matches it before the time bar runs out. Ten rounds, each faster than the last. Scoring is by how many octaves you miss by: within 1/12 octave is Perfect, within 1/3 octave is Close.
+A small ear-training game starring a celestial gourami. Pick what you want to train, then pick how you want to play.
 
-Controls: ↑ / ↓ (or W / S) to swim, drag or tap to steer, Space to lock in early. Use headphones at a low volume; the top end is piercing.
+**Sound**
+- **Frequency:** a soft sine tone somewhere between 50 Hz and 15 kHz, laid out by octaves like an EQ.
+- **Tempo:** a tiny 808-style drum machine (kick, snare, hat) synthesized in the browser, playing a random groove (rock, bachata, house, boom bap, dembow, trap, bossa, breakbeat) at a random 60–180 BPM. Half-time and double-time guesses count.
+
+**Mode**
+- **Training:** swim to the height that matches what you hear before the time bar runs out. Ten rounds, each faster.
+- **Arcade:** two nebulas drift in, each labeled with a frequency or a tempo. Eat the one that matches. Dodge asteroids and black holes, grab star snacks, keep your three lives. The choices get closer and space gets faster as you level up.
+
+Controls: ↑ / ↓ (or W / S) to swim, drag or tap to steer, Space to lock in early in Training. Works on phones. Use headphones at a low volume; the top end is piercing.
 
 ## Run it locally
 
-It's a single self-contained `index.html` with no build step. Open it in a browser:
+A single self-contained `index.html`, no build step:
 
 ```sh
 open index.html
-```
-
-or serve the folder:
-
-```sh
+# or
 python3 -m http.server 8000   # then visit http://localhost:8000
 ```
 
-## Publish on GitHub Pages
+High scores are saved in each player's browser. The menu shows a total play count from [Abacus](https://abacus.jasoncameron.dev), a free counter service; if it's unreachable, the game works without it.
 
-1. Create a GitHub repo and push this folder.
-2. In the repo: Settings → Pages → Deploy from branch → `main`, folder `/ (root)`.
-
-High scores are saved in each player's browser.
-
-Made by Anish Ghosh, vibecoded with Claude CLI.
+Made by Anish Ghosh, vibecoded with Claude Code.
