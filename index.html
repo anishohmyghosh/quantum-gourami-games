@@ -454,7 +454,7 @@ const fscale = () => Math.min(W, H) / 2500 * (W < 600 ? 1.35 : 1);
 const crossTime = () => Math.max(3, 7.2 - (A.level-1) * .38) + K.cross;
 const vx = () => (W + 240) / crossTime();
 function startArcade(){
-  Object.assign(A, { y: H/2, vy:0, lives:3, level:1, correct:0, combo:0, best:0, inv:0, objs:[], wave:null, waveCool:1.2, rockT:2.5, snackT:.6, holeT:16, texts:[], shake:0, hintWaves:2 });
+  Object.assign(A, { y: H/2, vy:0, lives:3, level:1, correct:0, combo:0, best:0, inv:0, objs:[], wave:null, waveCool:1.2, rockT:2.5, snackT:.6, holeT:16, texts:[], shake:0, hintWaves:2, sucked:null, popT:0 });
   S.score = 0; S.phase = 'arcade'; $('hScore').textContent = 0;
   $('menu').hidden = true; $('end').hidden = true; $('hud').hidden = false; $('hint').hidden = false; $('pad').hidden = false; $('toast').hidden = true;
   $('hBarWrap').hidden = true; $('hint').textContent = 'Eat the nebula that matches the ' + (K.id === 'tempo' ? 'tempo' : 'tone') + ' · ↑ ↓ or drag to swim';
@@ -500,10 +500,11 @@ function arcadeStep(dt){
   const X = fx(), sc = fscale(), v = vx();
   // movement
   const moving = S.holdUp || S.holdDn; S.hold = moving ? S.hold + dt : 0;
-  if (S.dragY !== null){ const d = S.dragY - A.y; A.vy = d*9; A.y += d*Math.min(1, dt*11); }
+  if (A.sucked){ A.vy *= .9; }
+  else if (S.dragY !== null){ const d = S.dragY - A.y; A.vy = d*9; A.y += d*Math.min(1, dt*11); }
   else { const dir = (S.holdDn?1:0) - (S.holdUp?1:0); const tv = dir * (H*.55 + Math.min(H*.6, S.hold*H*.9)); A.vy += (tv - A.vy)*Math.min(1, dt*10); A.y += A.vy*dt; }
   // black hole pull
-  for (const o of A.objs) if (o.k === 'hole'){ const dx = o.x - X, dy = o.y - A.y, d = Math.hypot(dx, dy); if (d < o.pull){ A.y += Math.sign(dy) * (1 - d/o.pull) * H*.55 * dt; } }
+  if (!A.sucked) for (const o of A.objs) if (o.k === 'hole'){ const dx = o.x - X, dy = o.y - A.y, d = Math.hypot(dx, dy); if (d < o.pull){ A.y += Math.sign(dy) * (1 - d/o.pull) * H*.55 * dt; } }
   A.y = Math.max(top(), Math.min(bottom(), A.y));
   A.inv = Math.max(0, A.inv - dt); A.shake = Math.max(0, A.shake - dt);
   // spawns
@@ -515,13 +516,13 @@ function arcadeStep(dt){
   const hitR = 150*sc;
   for (const o of A.objs){ o.x -= o.sp*dt; if (o.rot !== undefined) o.rot += o.vr*dt; if (o.ph !== undefined) o.ph += dt*3;
     const d = Math.hypot(o.x - (X + 40*sc), o.y - A.y);
-    if (o.k === 'rock' && !o.hit && d < o.r*.85 + hitR*.75){ o.hit = true; hurt('ASTEROID!'); }
-    if (o.k === 'hole' && !o.hit && d < o.r + hitR*.4){ o.hit = true; hurt('SWALLOWED BY A BLACK HOLE'); }
+    if (o.k === 'rock' && !o.hit && !A.sucked && d < o.r*.85 + hitR*.75){ o.hit = true; hurt('ASTEROID!'); }
+    if (o.k === 'hole' && !o.hit && !A.sucked && d < o.r + hitR*.4){ o.hit = true; const free = A.inv <= 0; hurt('SWALLOWED BY A BLACK HOLE'); if (free){ A.sucked = { o, t: 0 }; A.inv += 1.1; } }
     if (o.k === 'snack' && !o.dead && d < o.r + hitR){ o.dead = true; S.score += o.s[2]; say('+' + o.s[2] + ' ' + o.s[0], o.s[1], o.x, o.y - 14); hud(); }
   }
   A.objs = A.objs.filter(o => o.x > -o.r*8 && !o.dead);
   if (A.wave){ for (const n of A.wave.nebs){ n.x -= v*dt; n.ph += dt;
-      if (!A.wave.done && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*.95 + hitR*.65){ n.eaten = true; resolveWave(n); }
+      if (!A.wave.done && !A.sucked && Math.hypot(n.x - (X + 40*sc), n.y - A.y) < n.r*.95 + hitR*.65){ n.eaten = true; resolveWave(n); }
       if (A.wave.done) n.fade = Math.max(0, n.fade - dt*2.2); }
     if (!A.wave.done && A.wave.nebs.every(n => n.x < X - n.r - hitR)) resolveWave(null);
     if (A.wave.done && A.wave.nebs.every(n => n.fade <= 0 || n.x < -n.r*2)) A.wave = null; }
@@ -546,9 +547,19 @@ function arcadeStep(dt){
     const lab = K.fmt(n.m).toUpperCase(); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.75)'; ctx.strokeText(lab, n.x, n.y + n.r*1.25); ctx.fillStyle = '#fff6e8'; ctx.fillText(lab, n.x, n.y + n.r*1.25);
     ctx.globalAlpha = 1; }
   // gourami
-  const blink = A.inv > 0 && Math.floor(A.inv*10) % 2 === 0;
   const tl = easeTilt(Math.max(-.3, Math.min(.3, A.vy/H*.4)), dt);
-  if (!blink) drawFish(X, A.y + Math.sin(T*1.4)*3, sc, T, tl + Math.sin(T*.9)*.03);
+  const SUCK = 1.1, POP = .4;
+  if (A.sucked){ A.sucked.t += dt; if (A.sucked.t >= SUCK){ A.sucked = null; A.popT = POP; } }
+  else if (A.popT > 0) A.popT = Math.max(0, A.popT - dt);
+  const blink = !A.sucked && A.popT <= 0 && A.inv > 0 && Math.floor(A.inv*10) % 2 === 0;
+  if (A.sucked){
+    const o = A.sucked.o, k = Math.min(1, A.sucked.t / SUCK), e = k*k*(3 - 2*k);          // smoothstep
+    const swirl = (1 - e) * o.r * 1.6, ang = k * 9;                                        // spiral in around the hole
+    const px = X + (o.x - X)*e + Math.cos(ang)*swirl*e, py = A.y + (o.y - A.y)*e + Math.sin(ang)*swirl*e;
+    drawFish(px, py, sc * Math.pow(1 - e, 1.3) + .0001, T, k*k*16);
+  }
+  else if (A.popT > 0){ const k = 1 - A.popT/POP; const pop = k < .7 ? k/.7*1.15 : 1.15 - (k - .7)/.3*.15; drawFish(X, A.y, sc * pop, T, (1 - k)*2); }
+  else if (!blink) drawFish(X, A.y + Math.sin(T*1.4)*3, sc, T, tl + Math.sin(T*.9)*.03);
   // floating texts
   for (const t of A.texts){ t.t += dt; t.y -= dt*28; ctx.globalAlpha = Math.max(0, 1 - t.t/1.8); ctx.font = (t.big ? 18 : 13) + 'px Silkscreen, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,6,30,.7)'; ctx.strokeText(t.txt, t.x, t.y); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x, t.y); }
   ctx.globalAlpha = 1; A.texts = A.texts.filter(t => t.t < 1.8);
