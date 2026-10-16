@@ -10,7 +10,14 @@ A small ear-training game starring a celestial gourami. Pick what you want to tr
 - **Training:** swim to the height that matches what you hear before the time bar runs out. Ten rounds, each faster.
 - **Arcade:** two nebulas drift in, each labeled with a frequency or a tempo. Eat the one that matches. Dodge asteroids and black holes, grab star snacks, keep your three lives. The choices get closer and space gets faster as you level up.
 
-Controls: ↑ / ↓ (or W / S) to swim, drag or tap to steer, Space to lock in early in Training. Works on phones. Use headphones at a low volume; the top end is piercing.
+**Character**
+- **Gourami:** power move pulls stardust and stars in.
+- **Angel:** power move glides behind asteroids.
+- **Betta:** power move smashes through asteroids.
+
+Hold the power move (Space, or ✦ on phones) in Arcade. It drains while held and recharges when you let go. Nothing survives a black hole.
+
+Controls: ↑ / ↓ (or W / S) to swim, drag or tap to steer, Space to lock in early in Training or for the power move in Arcade. Works on phones. Use headphones at a low volume; the top end is piercing.
 
 ## Run it locally
 
