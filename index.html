@@ -78,6 +78,7 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
 .boardnote{font-size:12px;color:var(--dim)}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .ghost{font:inherit;font-size:14px;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--lilac);cursor:pointer}
+.ghost.arc{font-family:var(--arcade);letter-spacing:.12em;min-height:44px}
 @media (max-width:480px){.stats{grid-template-columns:1fr}.panel{padding:20px 16px;gap:12px}.panel p{font-size:14px;line-height:1.45}.modes .mode{padding:10px 12px}.modes .mode span{display:none}.chars{gap:8px}.chars canvas{height:54px}.chars span{font-size:11px}}
 @media (pointer:coarse){.keys .kb{display:none}}
 @media (max-width:360px){.mode b{font-size:12px;letter-spacing:.02em}.modes .mode{padding:8px 10px}.chars .mode{padding:8px 4px}}
@@ -122,8 +123,27 @@ kbd{font-family:var(--arcade);font-size:11px;border:1px solid var(--line);border
       <button class="mode" id="cBetta" data-char="betta" aria-pressed="false"><canvas aria-hidden="true"></canvas><b>BETTA</b><span>Smashes through asteroids</span></button>
     </div>
     <button class="go" id="startBtn">START</button>
+    <button class="ghost arc" id="scoresBtn">HIGH SCORES</button>
     <div class="plays" id="plays" hidden></div>
     <div class="keys"><span class="kb"><kbd>↑</kbd> <kbd>↓</kbd> swim</span><span>drag or tap to steer</span><span class="kb"><kbd>SPACE</kbd> lock in (training) · power move (arcade)</span><span class="tap">hold ✦ for your power move (arcade)</span><span>headphones at a low volume; the top end is piercing</span></div>
+  </div>
+</section>
+
+<section class="screen" id="scores" hidden>
+  <div class="panel">
+    <div class="eyebrow">QUANTUM GOURAMI</div>
+    <h2>High Scores</h2>
+    <div class="modes" role="group" aria-label="Sound">
+      <button class="mode" id="sFreq" aria-pressed="true"><b>FREQUENCY</b></button>
+      <button class="mode" id="sTempo" aria-pressed="false"><b>TEMPO</b></button>
+    </div>
+    <div class="modes" role="group" aria-label="Mode">
+      <button class="mode" id="sTrain" aria-pressed="true"><b>TRAINING</b></button>
+      <button class="mode" id="sArcade" aria-pressed="false"><b>ARCADE</b></button>
+    </div>
+    <ol class="board" id="sBoard"></ol>
+    <div class="boardnote" id="sNote"></div>
+    <div class="row"><button class="ghost" id="scoresBack">Main menu</button></div>
   </div>
 </section>
 
@@ -603,18 +623,29 @@ const boards = {};
 const bkey = () => K.id + '-' + S.mode;
 for (const k of ['freq-train','freq-arcade','tempo-train','tempo-arcade']) { try { boards[k] = JSON.parse(localStorage.getItem('qg.board.' + k) || (k.startsWith('freq') ? localStorage.getItem('qg.board.' + k.slice(5)) : null) || '[]'); } catch(e){ boards[k] = []; } }
 let lastEntry = null;
-function renderBoard(){
-  const rows = boards[bkey()].slice(0, 10);
-  $('board').innerHTML = '';
-  if (!rows.length){ const li = document.createElement('li'); li.innerHTML = '<span class="rk">—</span><span>No scores yet. Be the first gourami.</span><span></span><span></span>'; $('board').append(li); }
+function renderBoard(kind = K.id, mode = S.mode, list = $('board'), note = $('boardNote')){
+  const rows = boards[kind + '-' + mode].slice(0, 10);
+  list.innerHTML = '';
+  if (!rows.length){ const li = document.createElement('li'); li.innerHTML = '<span class="rk">—</span><span>No scores yet. Be the first gourami.</span><span></span><span></span>'; list.append(li); }
   rows.forEach((r,i) => { const li = document.createElement('li'); if (r === lastEntry) li.className = 'me';
     const a = document.createElement('span'); a.className='rk'; a.textContent = String(i+1).padStart(2,'0');
     const b = document.createElement('span'); b.textContent = r.name;
     const c = document.createElement('span'); c.className='md'; c.textContent = [r.char && CHARS[r.char] ? CHARS[r.char].name : '', r.mode === 'arcade' ? 'LV ' + (r.level || 1) : ''].filter(Boolean).join(' · ');
     const d = document.createElement('span'); d.className='sc'; d.textContent = r.score;
-    li.append(a,b,c,d); $('board').append(li); });
-  $('boardNote').textContent = (K.id === 'tempo' ? 'Tempo ' : 'Frequency ') + (S.mode === 'arcade' ? 'arcade' : 'training') + ' scores saved in this browser.';
+    li.append(a,b,c,d); list.append(li); });
+  note.textContent = (kind === 'tempo' ? 'Tempo ' : 'Frequency ') + (mode === 'arcade' ? 'arcade' : 'training') + ' scores saved in this browser.';
 }
+/* high scores screen from the menu */
+const SB = { kind:'freq', mode:'train' };
+function showScores(){
+  $('sFreq').setAttribute('aria-pressed', SB.kind==='freq'); $('sTempo').setAttribute('aria-pressed', SB.kind==='tempo');
+  $('sTrain').setAttribute('aria-pressed', SB.mode==='train'); $('sArcade').setAttribute('aria-pressed', SB.mode==='arcade');
+  renderBoard(SB.kind, SB.mode, $('sBoard'), $('sNote'));
+}
+$('scoresBtn').onclick = () => { SB.kind = K.id; SB.mode = S.mode; showScores(); $('menu').hidden = true; $('scores').hidden = false; };
+$('scoresBack').onclick = () => { $('scores').hidden = true; $('menu').hidden = false; };
+$('sFreq').onclick = () => { SB.kind = 'freq'; showScores(); }; $('sTempo').onclick = () => { SB.kind = 'tempo'; showScores(); };
+$('sTrain').onclick = () => { SB.mode = 'train'; showScores(); }; $('sArcade').onclick = () => { SB.mode = 'arcade'; showScores(); };
 $('nameIn').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9 ._-]/g,''); });
 $('nameForm').addEventListener('submit', e => {
   e.preventDefault();
