@@ -546,7 +546,7 @@ function finish(){
   $('eScore').textContent = S.score; $('eAvg').textContent = K.avgTxt(avg); $('ePerf').textContent = perf;
   const top = Math.max(...S.results.map(r => r.p), 1);
   $('eRounds').innerHTML = ''; S.results.forEach((r,i) => { const b = document.createElement('i'); b.style.height = (r.p/top*100) + '%'; b.title = `Round ${i+1}: ${r.p} pts, ${K.errTxt(r.oct)}`; $('eRounds').append(b); });
-  $('saveBtn').disabled = false; $('nameIn').disabled = false; $('nameIn').value = ''; $('end').hidden = false;
+  $('saveBtn').disabled = false; $('nameIn').disabled = false; $('nameIn').value = ''; $('end').hidden = false; pullBoards();
   if (!matchMedia('(pointer:coarse)').matches) setTimeout(() => { try { $('nameIn').focus(); } catch(e){} }, 60);
   renderBoard();
 }
@@ -618,22 +618,52 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
-/* ---------- leaderboard (this browser, one board per mode) ---------- */
+/* ---------- leaderboard (shared npoint.io bin + this browser, one board per mode) ---------- */
 const boards = {};
 const bkey = () => K.id + '-' + S.mode;
 for (const k of ['freq-train','freq-arcade','tempo-train','tempo-arcade']) { try { boards[k] = JSON.parse(localStorage.getItem('qg.board.' + k) || (k.startsWith('freq') ? localStorage.getItem('qg.board.' + k.slice(5)) : null) || '[]'); } catch(e){ boards[k] = []; } }
 let lastEntry = null;
+const BOARD_URL = 'https://api.npoint.io/7300806a0a1df6ad21b2';
+const KEYS = ['freq-train','freq-arcade','tempo-train','tempo-arcade'];
+let shared = null, boardMode = 'loading';
+const cleanRow = r => ({ name: String(r.name).toUpperCase().replace(/[^A-Z0-9 ._-]/g,'').slice(0,10) || '?', score: Math.max(0, Math.min(999999, Math.round(+r.score))),
+  mode: r.mode === 'arcade' ? 'arcade' : 'train', kind: r.kind === 'tempo' ? 'tempo' : 'freq', char: typeof r.char === 'string' && CHARS[r.char] ? r.char : '', level: Math.max(0, Math.min(99, Math.round(+r.level || 0))), at: Math.round(+r.at) || 0 });
+const cleanList = l => (Array.isArray(l) ? l : []).filter(r => r && typeof r.name === 'string' && Number.isFinite(+r.score)).map(cleanRow);
+const cleanAll = d => { const o = {}; for (const k of KEYS) o[k] = cleanList(d && d.boards && d.boards[k]); return o; };
+const same = (a, b) => a && b && a.at === b.at && a.name === b.name && a.score === b.score;
+function allFor(bk){ const out = []; for (const r of [...((shared && shared[bk]) || []), ...cleanList(boards[bk])]) if (!out.some(x => same(x, r))) out.push(r); return out.sort((a,b) => b.score - a.score); }
+const withTimeout = (o = {}) => { const c = new AbortController(); setTimeout(() => c.abort(), 8000); return { ...o, signal: c.signal }; };
+const getJSON = () => fetch(BOARD_URL, withTimeout({ cache: 'no-store' })).then(r => { if (!r.ok) throw 0; return r.json(); });
+function rerender(){ if (!$('end').hidden) renderBoard(); if (!$('scores').hidden) showScores(); }
+let pulling = null;
+function pullBoards(){ if (pulling) return pulling; pulling = getJSON().then(d => { shared = cleanAll(d); boardMode = 'shared'; }).catch(() => { boardMode = shared ? 'shared' : 'offline'; }).finally(() => { pulling = null; rerender(); }); return pulling; }
+async function pushEntry(bk, entry){
+  for (let i = 0; i < 3; i++){
+    try {
+      const all = cleanAll(await getJSON());
+      if (!all[bk].some(x => same(x, entry))) all[bk].push(entry);
+      all[bk].sort((a,b) => b.score - a.score); all[bk] = all[bk].slice(0, 50);
+      const r = await fetch(BOARD_URL, withTimeout({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boards: all }) }));
+      if (!r.ok) throw 0;
+      const v = cleanAll(await getJSON()), l = v[bk];
+      if (l.some(x => same(x, entry)) || (l.length >= 50 && entry.score <= l[l.length-1].score)){ shared = v; boardMode = 'shared'; rerender(); return true; }
+    } catch(e){}
+    await new Promise(r => setTimeout(r, 500 + Math.random()*700));
+  }
+  boardMode = 'offline'; rerender(); return false;
+}
 function renderBoard(kind = K.id, mode = S.mode, list = $('board'), note = $('boardNote')){
-  const rows = boards[kind + '-' + mode].slice(0, 10);
+  const rows = allFor(kind + '-' + mode).slice(0, 10);
   list.innerHTML = '';
   if (!rows.length){ const li = document.createElement('li'); li.innerHTML = '<span class="rk">—</span><span>No scores yet. Be the first gourami.</span><span></span><span></span>'; list.append(li); }
-  rows.forEach((r,i) => { const li = document.createElement('li'); if (r === lastEntry) li.className = 'me';
+  rows.forEach((r,i) => { const li = document.createElement('li'); if (same(r, lastEntry)) li.className = 'me';
     const a = document.createElement('span'); a.className='rk'; a.textContent = String(i+1).padStart(2,'0');
     const b = document.createElement('span'); b.textContent = r.name;
     const c = document.createElement('span'); c.className='md'; c.textContent = [r.char && CHARS[r.char] ? CHARS[r.char].name : '', r.mode === 'arcade' ? 'LV ' + (r.level || 1) : ''].filter(Boolean).join(' · ');
     const d = document.createElement('span'); d.className='sc'; d.textContent = r.score;
     li.append(a,b,c,d); list.append(li); });
-  note.textContent = (kind === 'tempo' ? 'Tempo ' : 'Frequency ') + (mode === 'arcade' ? 'arcade' : 'training') + ' scores saved in this browser.';
+  const what = (kind === 'tempo' ? 'Tempo ' : 'Frequency ') + (mode === 'arcade' ? 'arcade' : 'training');
+  note.textContent = boardMode === 'shared' ? what + ' scores, shared across every device.' : boardMode === 'loading' ? 'Loading the shared ' + what.toLowerCase() + ' scores…' : what + ' scores saved in this browser (the shared board could not be reached).';
 }
 /* high scores screen from the menu */
 const SB = { kind:'freq', mode:'train' };
@@ -642,7 +672,7 @@ function showScores(){
   $('sTrain').setAttribute('aria-pressed', SB.mode==='train'); $('sArcade').setAttribute('aria-pressed', SB.mode==='arcade');
   renderBoard(SB.kind, SB.mode, $('sBoard'), $('sNote'));
 }
-$('scoresBtn').onclick = () => { SB.kind = K.id; SB.mode = S.mode; showScores(); $('menu').hidden = true; $('scores').hidden = false; };
+$('scoresBtn').onclick = () => { SB.kind = K.id; SB.mode = S.mode; showScores(); $('menu').hidden = true; $('scores').hidden = false; pullBoards(); };
 $('scoresBack').onclick = () => { $('scores').hidden = true; $('menu').hidden = false; };
 $('sFreq').onclick = () => { SB.kind = 'freq'; showScores(); }; $('sTempo').onclick = () => { SB.kind = 'tempo'; showScores(); };
 $('sTrain').onclick = () => { SB.mode = 'train'; showScores(); }; $('sArcade').onclick = () => { SB.mode = 'arcade'; showScores(); };
@@ -652,9 +682,10 @@ $('nameForm').addEventListener('submit', e => {
   const name = ($('nameIn').value.trim() || 'GOURAMI').slice(0,10);
   $('saveBtn').disabled = true; $('nameIn').disabled = true; $('nameIn').blur();
   const entry = { name, score: S.score, mode: S.mode, kind: K.id, char: CH, level: S.mode === 'arcade' ? A.level : 0, at: Date.now() };
-  lastEntry = entry; const bk = bkey(), bd = boards[bk]; bd.push(entry); bd.sort((a,b) => b.score - a.score); boards[bk] = bd.slice(0, 25);
+  lastEntry = cleanRow(entry); const bk = bkey(), bd = boards[bk]; bd.push(entry); bd.sort((a,b) => b.score - a.score); boards[bk] = bd.slice(0, 25);
   try { localStorage.setItem('qg.board.' + bk, JSON.stringify(boards[bk])); } catch(err){}
   renderBoard();
+  pushEntry(bk, cleanRow(entry));
 });
 
 /* ---------- play counter (abacus.jasoncameron.dev, free and keyless) ---------- */
@@ -853,12 +884,12 @@ function finishArcade(){
   $('eMode').textContent = K.title + ' ARCADE  ·  ' + CHARS[CH].name + '  ·  LEVEL ' + A.level; $('pPow').hidden = true;
   $('eL1').textContent = 'Score'; $('eL2').textContent = 'Nebulas eaten'; $('eL3').textContent = 'Best combo';
   $('eScore').textContent = sc; $('eAvg').textContent = A.correct; $('ePerf').textContent = '×' + A.best; $('eRounds').hidden = true;
-  $('saveBtn').disabled = false; $('nameIn').disabled = false; $('nameIn').value = ''; $('end').hidden = false;
+  $('saveBtn').disabled = false; $('nameIn').disabled = false; $('nameIn').value = ''; $('end').hidden = false; pullBoards();
   if (!matchMedia('(pointer:coarse)').matches) setTimeout(() => { try { $('nameIn').focus(); } catch(e){} }, 60);
   renderBoard();
 }
 
-const boot = () => { resize(); renderBoard(); requestAnimationFrame(frame); };
+const boot = () => { resize(); renderBoard(); pullBoards(); requestAnimationFrame(frame); };
 boot();
 })();
 </script>

@@ -29,6 +29,6 @@ open index.html
 python3 -m http.server 8000   # then visit http://localhost:8000
 ```
 
-High scores are saved in each player's browser. The menu shows a total play count from [Abacus](https://abacus.jasoncameron.dev), a free counter service; if it's unreachable, the game works without it.
+High scores are shared across every device through a public [npoint.io](https://www.npoint.io) JSON bin, and also kept in each player's browser so the boards still work offline. The menu shows a total play count from [Abacus](https://abacus.jasoncameron.dev), a free counter service; if it's unreachable, the game works without it.
 
 Made by Anish Ghosh, vibecoded with Claude Code.
